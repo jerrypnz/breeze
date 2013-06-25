@@ -37,6 +37,22 @@ enum _filter_return_code {
     FT_STOP
 };
 
+#define handler_init(handler)                   \
+    (handler)->init((handler))
+
+#define handler_destroy(handler)                \
+    (handler)->destroy((handler))
+
+#define handler_handle(handler, path, req)      \
+    (handler)->handle((handler), (path), (req))
+
+
+__inline__ int handler_destroy(handler_t *handler) {
+    handler->destroy(handler);
+}
+
+__inline__ int 
+
 void filter_chain_add(filter_chain_t *chain, filter_t *ft);
 int  filter_chain_do_filter(filter_chain_t *chain, const char* path, request_t *req);
 

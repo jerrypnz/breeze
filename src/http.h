@@ -132,10 +132,14 @@ struct _http_parser {
 int parser_init(http_parser_t *parser);
 int parser_destroy(http_parser_t *parser);
 int parser_reset(http_parser_t *parser);
-int parse_request(http_parser_t *parser, const char *data, const size_t data_len, size_t *consumed_len);
+int parse_request(http_parser_t *parser,
+                  const char *data,
+                  const size_t data_len,
+                  size_t *consumed_len);
 
 /**
- * Resolve a requests' raw headers and populate the common_headers_t struct with the resolved values,
+ * Resolve a requests' raw headers and populate
+ * the common_headers_t struct with the resolved values,
  * so that the handlers could get these headers in a convenient way
  */
 int resolve_request(request_t *req);

@@ -31,9 +31,14 @@ int parser_reset(http_parser_t *parser) {
 }
 
 
-#define START_NEW_TOKEN(parser)                 ( (parser)->_cur_tok = (parser)->req->_buffer_in + (parser)->req->_buf_in_idx )
-#define FILL_NEXT_CHAR(parser, ch)              ( (parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = (ch) )
-#define FINISH_CUR_TOKEN(parser)                ( (parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = '\0' )
+#define START_NEW_TOKEN(parser) \
+    ((parser)->_cur_tok = (parser)->req->_buffer_in + (parser)->req->_buf_in_idx)
+
+#define FILL_NEXT_CHAR(parser, ch) \
+    ((parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = (ch))
+    
+#define FINISH_CUR_TOKEN(parser) \
+    ((parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = '\0' )
 
 #define EXPECT_CHAR(parser, ch, expected_ch, next_state) \
     if ((ch) == (expected_ch)) { \
@@ -43,7 +48,10 @@ int parser_reset(http_parser_t *parser) {
     }
 
 
-int parse_request(http_parser_t *parser, const char *data, const size_t data_len, size_t *consumed_len) {
+int parse_request(http_parser_t *parser,
+                  const char *data,
+                  const size_t data_len,
+                  size_t *consumed_len) {
     printf("Parsing HTTP request\n");
     http_version_e      ver;
     int                 i, rc;
@@ -140,7 +148,8 @@ int parse_request(http_parser_t *parser, const char *data, const size_t data_len
             case PARSER_STATE_HEADER_NAME:
                 if (ch == ':') {
                     FINISH_CUR_TOKEN(parser);
-                    parser->req->raw_headers_in[parser->req->raw_header_count].name = parser->_cur_tok;
+                    parser->req->raw_headers_in[parser->req->raw_header_count].name
+                        = parser->_cur_tok;
                     parser->_state = PARSER_STATE_HEADER_COLON;
                     START_NEW_TOKEN(parser);
                 } else {
@@ -155,7 +164,8 @@ int parse_request(http_parser_t *parser, const char *data, const size_t data_len
             case PARSER_STATE_HEADER_VALUE:
                 if (ch == '\r') {
                     FINISH_CUR_TOKEN(parser);
-                    parser->req->raw_headers_in[parser->req->raw_header_count].value = parser->_cur_tok;
+                    parser->req->raw_headers_in[parser->req->raw_header_count].value
+                        = parser->_cur_tok;
                     parser->req->raw_header_count++;
                     parser->_state = PARSER_STATE_HEADER_CR;
                     START_NEW_TOKEN(parser);
