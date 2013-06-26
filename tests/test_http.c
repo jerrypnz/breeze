@@ -67,21 +67,20 @@ const http_header_t     expected_headers[] = {
     {"Cookie", "lzstat_uv=39255935923757216993|1146165@1270080@1632275@1145010@0; remember_me=yes; login_token=MTAyMjExXzJkZjY4ZGIyNDIzZTdjMTE4YmM5OTU0OTQ2MTU0N2Fh%0A; _javaeye3_session_=BAh7BzoMdXNlcl9pZGkDQ48BOg9zZXNzaW9uX2lkIiVjMDdlNjJmZGJiNTFhZjhhYmU5Yjk4NjE1Y2ZjODBhOQ%3D%3D--b9945c8e50a5eba75e75c92b2c92e5a3a86f1000"}
 };
 
-http_parser_t   parser;
 request_t       request;
 
-void dump_parser();
+void dump_request();
 void assert_headers();
 
 void test_parse_once() {
-    int     req_size, rc;
-    size_t  consumed_size;
+    size_t     req_size, consumed_size;
+    int        rc;
 
     printf("\n\nTesting parsing all in one time\n");
     req_size = strlen(test_request);
-    rc = parse_request(&parser, test_request, req_size, &consumed_size);
-    printf("Request size: %d, consumed size: %d, return status: %d\n", req_size, consumed_size, rc);
-    dump_parser();
+    rc = request_parse_headers(&request, test_request, req_size, &consumed_size);
+    printf("Request size: %zu, consumed size: %zu, return status: %d\n", req_size, consumed_size, rc);
+    dump_request();
     assert(rc == STATUS_COMPLETE);
     assert(consumed_size == req_size);
     assert_headers();
@@ -89,59 +88,39 @@ void test_parse_once() {
 
 
 void test_parse_once_with_extra_data() {
-    int     req_size, rc;
-    size_t  consumed_size;
+    size_t     req_size, consumed_size;
+    int        rc;    
 
     printf("\n\nTesting parsing all in one time with extra data left\n");
     req_size = strlen(test_request_2);
-    rc = parse_request(&parser, test_request_2, req_size, &consumed_size);
-    printf("Request size: %d, consumed size: %d, return status: %d\n", req_size, consumed_size, rc);
-    dump_parser();
+    rc = request_parse_headers(&request, test_request_2, req_size, &consumed_size);
+    printf("Request size: %zu, consumed size: %zu, return status: %d\n", req_size, consumed_size, rc);
+    dump_request();
     assert(rc == STATUS_COMPLETE);
     assert(consumed_size == req_size - strlen("GET /home/hello.do?id=1001&name=hello HTTP/1.1\r\n"));
     assert_headers();
 }
 
 void test_parse_multiple_times() {
-    int     req_size, rc;
-    size_t  consumed_size;
-    int     part1_size, part2_size, part3_size;
-    char    *data;
+    size_t     req_size, consumed_size;
+    int        rc;
+    size_t     part1_size;
+    char       *data;
 
     printf("\n\nTesting parsing all in multiple time\n");
     data = test_request;
     req_size = strlen(data);
+    part1_size = req_size / 2;
 
-    part1_size = req_size / 3;
-    part2_size = req_size / 3 + 9;
-    part3_size = req_size - part1_size - part2_size;
-
-    // First time
-    rc = parse_request(&parser, data, part1_size, &consumed_size);
-    printf("First Time: Request size: %d, consumed size: %d, return status: %d\n", req_size, consumed_size, rc);
-    dump_parser();
+    // Incomplete request
+    rc = request_parse_headers(&request, data, part1_size, &consumed_size);
+    printf("First Time: Request size: %zu, consumed size: %zu, return status: %d\n",
+           req_size, consumed_size, rc);
+    dump_request();
     assert(rc == STATUS_CONTINUE);
     assert(consumed_size == part1_size);
 
     data += consumed_size;
-
-    // Second time
-    rc = parse_request(&parser, data, part2_size, &consumed_size);
-    printf("Second Time: Request size: %d, consumed size: %d, return status: %d\n", req_size, consumed_size, rc);
-    dump_parser();
-    assert(rc == STATUS_CONTINUE);
-    assert(consumed_size == part2_size);
-
-    data += consumed_size;
-
-    // Third time
-    rc = parse_request(&parser, data, part3_size, &consumed_size);
-    printf("Third Time: Request size: %d, consumed size: %d, return status: %d\n", req_size, consumed_size, rc);
-
-    dump_parser();
-    assert(rc == STATUS_COMPLETE);
-    assert(consumed_size == part3_size);
-    assert_headers();
 }
 
 
@@ -152,26 +131,25 @@ void test_parse_invalid_version() {
     req_size = strlen(invalid_req);
 
     printf("\n\nTesting invalid HTTP version\n");
-    rc = parse_request(&parser, invalid_req, req_size, &consumed_size);
-    dump_parser();
+    rc = request_parse_headers(&request, invalid_req, req_size, &consumed_size);
+    dump_request();
     assert(rc == STATUS_ERROR);
-    assert(parser._state == PARSER_STATE_BAD_REQUEST);
 }
 
-void dump_parser() {
+void dump_request() {
     int i;
 
     printf("--------- Parser State -----------------------\n");
-    printf("Method: %s\n", parser.req->method);
-    printf("Path: %s\n", parser.req->path);
-    printf("Query String: %s\n", parser.req->query_str);
-    printf("HTTP Version: %d\n", parser.req->version);
-    printf("Header count: %d\n", parser.req->header_count);
+    printf("Method: %s\n", request.method);
+    printf("Path: %s\n", request.path);
+    printf("Query String: %s\n", request.query_str);
+    printf("HTTP Version: %d\n", request.version);
+    printf("Header count: %d\n", request.header_count);
     printf("Headers: \n");
     printf("------------\n");
 
-    for (i = 0; i < parser.req->raw_header_count; i++) {
-        printf("\r%s: %s\n", parser.req->raw_headers_in[i].name, parser.req->raw_headers_in[i].value);
+    for (i = 0; i < request.raw_header_count; i++) {
+        printf("\r%s: %s\n", request.raw_headers_in[i].name, request.raw_headers_in[i].value);
     }
 
     printf("----------------------------------------------\n");
@@ -183,7 +161,7 @@ void assert_headers() {
 
     expected_header_size = sizeof(expected_headers) / sizeof(http_header_t);
 
-    req = parser.req;
+    req = &request;
 
     printf("Expecting %d headers\n", expected_header_size);
     assert(expected_header_size == req->raw_header_count);
@@ -199,14 +177,9 @@ int main(int argc, const char *argv[])
 {
     print_stacktrace_on_error();
     //bzero(&request, sizeof(request_t));
-    parser.req = &request;
-    parser_init(&parser);
     test_parse_once();
-    parser_reset(&parser);
     test_parse_once_with_extra_data();
-    parser_reset(&parser);
     test_parse_multiple_times();
-    parser_reset(&parser);
     test_parse_invalid_version();
     return 0;
 }

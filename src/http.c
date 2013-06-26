@@ -3,107 +3,103 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef enum _parser_state {
+    PARSER_STATE_BAD_REQUEST = -1,
+    PARSER_STATE_COMPLETE = 0,
+    PARSER_STATE_METHOD,
+    PARSER_STATE_PATH,
+    PARSER_STATE_QUERY_STR,
+    PARSER_STATE_VERSION,
+    PARSER_STATE_HEADER_NAME,
+    PARSER_STATE_HEADER_COLON,
+    PARSER_STATE_HEADER_VALUE,
+    PARSER_STATE_HEADER_CR,
+    PARSER_STATE_HEADER_LF,
+    PARSER_STATE_HEADER_COMPLETE_CR,
+} parser_state_e;
+
+
 static http_version_e _resolve_http_version(const char* version_str);
 
-int parser_init(http_parser_t *parser) {
-    printf("Init parser init\n");
-    parser_reset(parser);
-    return 0;
-}
+#define START_NEW_TOKEN(tok, req)                      \
+    (tok = (req)->_buffer_in + (req)->_buf_in_idx)
 
-int parser_destroy(http_parser_t *parser) {
-    printf("In parser destroy\n");
-    return 0;
-}
-
-int parser_reset(http_parser_t *parser) {
-    printf("Init parser reset\n");
-
-    // The first part of the request must be HTTP method.
-    parser->_state = PARSER_STATE_METHOD;
-
-    // Make the buffer an empty string
-    parser->req->_buffer_in[0] = '\0';
-    parser->req->_buf_in_idx = 0;
-    parser->req->raw_header_count = 0;
-    parser->_cur_tok = parser->req->_buffer_in;
-    return 0;
-}
-
-
-#define START_NEW_TOKEN(parser) \
-    ((parser)->_cur_tok = (parser)->req->_buffer_in + (parser)->req->_buf_in_idx)
-
-#define FILL_NEXT_CHAR(parser, ch) \
-    ((parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = (ch))
+#define FILL_NEXT_CHAR(req, ch) \
+    ((req)->_buffer_in[req->_buf_in_idx++] = (ch))
     
-#define FINISH_CUR_TOKEN(parser) \
-    ((parser)->req->_buffer_in[(parser)->req->_buf_in_idx++] = '\0' )
+#define FINISH_CUR_TOKEN(req) \
+    ((req)->_buffer_in[(req)->_buf_in_idx++] = '\0' )
 
-#define EXPECT_CHAR(parser, ch, expected_ch, next_state) \
+#define EXPECT_CHAR(state, ch, expected_ch, next_state) \
     if ((ch) == (expected_ch)) { \
-        (parser)->_state = (next_state); \
+        state = (next_state); \
     } else { \
-        (parser)->_state = PARSER_STATE_BAD_REQUEST; \
+        state = PARSER_STATE_BAD_REQUEST; \
     }
 
 
-int parse_request(http_parser_t *parser,
-                  const char *data,
-                  const size_t data_len,
-                  size_t *consumed_len) {
+int request_parse_headers(request_t *req,
+                          const char *data,
+                          const size_t data_len,
+                          size_t *consumed) {
     printf("Parsing HTTP request\n");
     http_version_e      ver;
     int                 i, rc;
     char                ch;
+    char                *cur_token = req->_buffer_in;
+    parser_state_e      state = PARSER_STATE_METHOD;
+
+    req->_buffer_in[0] = '\0';
+    req->_buf_in_idx = 0;
+    req->raw_header_count = 0;
 
     for (i = 0; i < data_len;){
 
-        if (parser->_state == PARSER_STATE_COMPLETE ||
-             parser->_state == PARSER_STATE_BAD_REQUEST) {
+        if (state == PARSER_STATE_COMPLETE ||
+             state == PARSER_STATE_BAD_REQUEST) {
             break;
         } 
         ch = data[i++];
 
-        switch(parser->_state) {
+        switch(state) {
 
             case PARSER_STATE_METHOD:
                 if (ch == ' ') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->method = parser->_cur_tok;
-                    parser->_state = PARSER_STATE_PATH;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->method = cur_token;
+                    state = PARSER_STATE_PATH;
+                    START_NEW_TOKEN(cur_token, req);
                 } else if (ch < 'A' || ch > 'Z') {
-                    parser->_state = PARSER_STATE_BAD_REQUEST;
+                    state = PARSER_STATE_BAD_REQUEST;
                 } else {
-                    FILL_NEXT_CHAR(parser, ch);
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
             case PARSER_STATE_PATH:
                 if (ch == '?') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->path = parser->_cur_tok;
-                    parser->_state = PARSER_STATE_QUERY_STR;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->path = cur_token;
+                    state = PARSER_STATE_QUERY_STR;
+                    START_NEW_TOKEN(cur_token, req);
                 } else if (ch == ' ') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->path = parser->_cur_tok;
-                    parser->_state = PARSER_STATE_VERSION;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->path = cur_token;
+                    state = PARSER_STATE_VERSION;
+                    START_NEW_TOKEN(cur_token, req);
                 } else {
-                    FILL_NEXT_CHAR(parser, ch);
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
             case PARSER_STATE_QUERY_STR:
                 if (ch == ' ') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->query_str = parser->_cur_tok;
-                    parser->_state = PARSER_STATE_VERSION;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->query_str = cur_token;
+                    state = PARSER_STATE_VERSION;
+                    START_NEW_TOKEN(cur_token, req);
                 } else {
-                    FILL_NEXT_CHAR(parser, ch);
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
@@ -119,89 +115,87 @@ int parse_request(http_parser_t *parser,
                     case '1':
                     case '9':
                     case '.':
-                        FILL_NEXT_CHAR(parser, ch);
+                        FILL_NEXT_CHAR(req, ch);
                         break;
 
                     case '/':
-                        FINISH_CUR_TOKEN(parser);
-                        if (strcmp("HTTP", parser->_cur_tok) != 0) {
-                            parser->_state = PARSER_STATE_BAD_REQUEST;
+                        FINISH_CUR_TOKEN(req);
+                        if (strcmp("HTTP", cur_token) != 0) {
+                            state = PARSER_STATE_BAD_REQUEST;
                             break;
                         }
-                        START_NEW_TOKEN(parser);
+                        START_NEW_TOKEN(cur_token, req);
                         break;
 
                     case '\r':
-                        FINISH_CUR_TOKEN(parser);
-                        ver = _resolve_http_version(parser->_cur_tok);
+                        FINISH_CUR_TOKEN(req);
+                        ver = _resolve_http_version(cur_token);
                         if (ver == HTTP_VERSION_UNKNOW) {
-                            parser->_state = PARSER_STATE_BAD_REQUEST;
+                            state = PARSER_STATE_BAD_REQUEST;
                             break;
                         }
-                        parser->req->version = ver;
-                        parser->_state = PARSER_STATE_HEADER_CR;
-                        START_NEW_TOKEN(parser);
+                        req->version = ver;
+                        state = PARSER_STATE_HEADER_CR;
+                        START_NEW_TOKEN(cur_token, req);
                         break;
                 }
                 break;
 
             case PARSER_STATE_HEADER_NAME:
                 if (ch == ':') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->raw_headers_in[parser->req->raw_header_count].name
-                        = parser->_cur_tok;
-                    parser->_state = PARSER_STATE_HEADER_COLON;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->raw_headers_in[req->raw_header_count].name = cur_token;
+                    state = PARSER_STATE_HEADER_COLON;
+                    START_NEW_TOKEN(cur_token, req);
                 } else {
-                    FILL_NEXT_CHAR(parser, ch);
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
             case PARSER_STATE_HEADER_COLON:
-                EXPECT_CHAR(parser, ch, ' ', PARSER_STATE_HEADER_VALUE);
+                EXPECT_CHAR(state, ch, ' ', PARSER_STATE_HEADER_VALUE);
                 break;
 
             case PARSER_STATE_HEADER_VALUE:
                 if (ch == '\r') {
-                    FINISH_CUR_TOKEN(parser);
-                    parser->req->raw_headers_in[parser->req->raw_header_count].value
-                        = parser->_cur_tok;
-                    parser->req->raw_header_count++;
-                    parser->_state = PARSER_STATE_HEADER_CR;
-                    START_NEW_TOKEN(parser);
+                    FINISH_CUR_TOKEN(req);
+                    req->raw_headers_in[req->raw_header_count].value = cur_token;
+                    req->raw_header_count++;
+                    state = PARSER_STATE_HEADER_CR;
+                    START_NEW_TOKEN(cur_token, req);
                 } else {
-                    FILL_NEXT_CHAR(parser, ch);
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
             case PARSER_STATE_HEADER_CR:
-                EXPECT_CHAR(parser, ch, '\n', PARSER_STATE_HEADER_LF);
+                EXPECT_CHAR(state, ch, '\n', PARSER_STATE_HEADER_LF);
                 break;
 
             case PARSER_STATE_HEADER_LF:
                 // Another CR after a header LF, meanning the header end is met.
                 if (ch == '\r') { 
-                    parser->_state = PARSER_STATE_HEADER_COMPLETE_CR; 
+                    state = PARSER_STATE_HEADER_COMPLETE_CR; 
                 } else { 
-                    parser->_state = PARSER_STATE_HEADER_NAME; 
-                    FILL_NEXT_CHAR(parser, ch);
+                    state = PARSER_STATE_HEADER_NAME; 
+                    FILL_NEXT_CHAR(req, ch);
                 }
                 break;
 
             case PARSER_STATE_HEADER_COMPLETE_CR:
-                EXPECT_CHAR(parser, ch, '\n', PARSER_STATE_COMPLETE);
+                EXPECT_CHAR(state, ch, '\n', PARSER_STATE_COMPLETE);
                 break;
 
             default:
-                fprintf(stderr, "Unexpected state: %d\n", parser->_state);
+                fprintf(stderr, "Unexpected state: %d\n", state);
                 break;
 
         }
     }
 
-    *consumed_len = i;
-
-    switch (parser->_state) {
+    *consumed = i;
+    
+    switch (state) {
         case PARSER_STATE_COMPLETE:
             rc = STATUS_COMPLETE;
             break;
