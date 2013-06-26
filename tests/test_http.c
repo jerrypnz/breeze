@@ -144,12 +144,12 @@ void dump_request() {
     printf("Path: %s\n", request.path);
     printf("Query String: %s\n", request.query_str);
     printf("HTTP Version: %d\n", request.version);
-    printf("Header count: %d\n", request.header_count);
+    printf("Header count: %zu\n", request.header_count);
     printf("Headers: \n");
     printf("------------\n");
 
-    for (i = 0; i < request.raw_header_count; i++) {
-        printf("\r%s: %s\n", request.raw_headers_in[i].name, request.raw_headers_in[i].value);
+    for (i = 0; i < request.header_count; i++) {
+        printf("\r%s: %s\n", request.headers[i].name, request.headers[i].value);
     }
 
     printf("----------------------------------------------\n");
@@ -164,12 +164,12 @@ void assert_headers() {
     req = &request;
 
     printf("Expecting %d headers\n", expected_header_size);
-    assert(expected_header_size == req->raw_header_count);
+    assert(expected_header_size == req->header_count);
     printf("Checked\n");
 
-    for (i = 0; i < req->raw_header_count; i++) {
-        assert(strcmp(expected_headers[i].name,  req->raw_headers_in[i].name) == 0);
-        assert(strcmp(expected_headers[i].value, req->raw_headers_in[i].value) == 0);
+    for (i = 0; i < req->header_count; i++) {
+        assert(strcmp(expected_headers[i].name,  req->headers[i].name) == 0);
+        assert(strcmp(expected_headers[i].value, req->headers[i].value) == 0);
     }
 }
 

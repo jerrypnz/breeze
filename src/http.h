@@ -1,19 +1,20 @@
 #ifndef __HTTP_H
 #define __HTTP_H
 
-#define REQUEST_BUFFER_SIZE     4096
-#define MAX_HEADER_SIZE         25
+#define _GNU_SOURCE
 
 #include <stddef.h>
 #include <time.h>
+#include <search.h>
+
+#define REQUEST_BUFFER_SIZE     2048
+#define MAX_HEADER_SIZE         25
 
 struct _request;
 struct _response;
-struct _http_parser;
 
 typedef struct _request         request_t;
 typedef struct _response        response_t;
-typedef struct _http_parser     http_parser_t;
 typedef struct _http_header     http_header_t;
 
 typedef enum {
@@ -22,6 +23,7 @@ typedef enum {
     HTTP_VERSION_1_0 = 10,
     HTTP_VERSION_1_1 = 11
 } http_version_e;
+
 
 typedef enum _http_methods {
     HTTP_METHOD_EXTENDED = 0,
@@ -53,11 +55,11 @@ struct _request {
     char                    *method;
     http_version_e          version;
 
-    int                     header_count;
+    // Unresolved headers of the request
+    http_header_t           headers[MAX_HEADER_SIZE];
+    size_t                  header_count;
 
-    // Unresolved raw headers of the request
-    http_header_t           raw_headers_in[MAX_HEADER_SIZE];
-    int                     raw_header_count;
+    struct hsearch_data     _header_hash;
 
     // All the request header fields' are stored in this buffer 
     char                    _buffer_in[REQUEST_BUFFER_SIZE];
@@ -65,6 +67,7 @@ struct _request {
 };
 
 request_t*   request_create();
+int          request_destroy(request_t *request);
 int          request_parse_headers(request_t *request,
                                    const char *data,
                                    const size_t data_len,

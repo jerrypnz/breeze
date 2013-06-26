@@ -1,6 +1,7 @@
 #include "http.h"
 #include "common.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef enum _parser_state {
@@ -20,6 +21,29 @@ typedef enum _parser_state {
 
 
 static http_version_e _resolve_http_version(const char* version_str);
+
+
+request_t* request_create() {
+    request_t  *req;
+    req = (request_t*) calloc(1, sizeof(request_t));
+    if (req == NULL) {
+        fprintf(stderr, "Unable to malloc");
+        return NULL;
+    }
+    bzero(req, sizeof(request_t));
+    if (hcreate_r(MAX_HEADER_SIZE, &req->_header_hash) == 0) {
+        perror("Error creating header hash table");
+        free(req);
+        return NULL;
+    }
+    return req;
+}
+
+int request_destroy(request_t *req) {
+    hdestroy_r(&req->_header_hash);
+    free(req);
+    return 0;
+}
 
 #define START_NEW_TOKEN(tok, req)                      \
     (tok = (req)->_buffer_in + (req)->_buf_in_idx)
@@ -51,7 +75,7 @@ int request_parse_headers(request_t *req,
 
     req->_buffer_in[0] = '\0';
     req->_buf_in_idx = 0;
-    req->raw_header_count = 0;
+    req->header_count = 0;
 
     for (i = 0; i < data_len;){
 
@@ -144,7 +168,7 @@ int request_parse_headers(request_t *req,
             case PARSER_STATE_HEADER_NAME:
                 if (ch == ':') {
                     FINISH_CUR_TOKEN(req);
-                    req->raw_headers_in[req->raw_header_count].name = cur_token;
+                    req->headers[req->header_count].name = cur_token;
                     state = PARSER_STATE_HEADER_COLON;
                     START_NEW_TOKEN(cur_token, req);
                 } else {
@@ -159,8 +183,8 @@ int request_parse_headers(request_t *req,
             case PARSER_STATE_HEADER_VALUE:
                 if (ch == '\r') {
                     FINISH_CUR_TOKEN(req);
-                    req->raw_headers_in[req->raw_header_count].value = cur_token;
-                    req->raw_header_count++;
+                    req->headers[req->header_count].value = cur_token;
+                    req->header_count++;
                     state = PARSER_STATE_HEADER_CR;
                     START_NEW_TOKEN(cur_token, req);
                 } else {
