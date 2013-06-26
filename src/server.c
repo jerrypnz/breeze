@@ -41,6 +41,7 @@ static void _server_connection_handler(ioloop_t *loop,
                                        unsigned int events,
                                        void *args);
 static void _server_connection_close_handler(iostream_t *stream);
+static int _set_nonblocking(int sockfd);
 
 server_t* server_create(unsigned short port, char *confile) {
     server_t *server;
@@ -151,11 +152,22 @@ static void _server_connection_handler(ioloop_t *loop,
         return;
     }
 
-    if (set_nonblocking(conn_fd)) {
+    if (_set_nonblocking(conn_fd) < 0) {
         perror("Error configuring Non-blocking");
         return;
     }
     
     stream = iostream_create(loop, conn_fd, 1024, 1024);
     iostream_set_close_handler(stream, connection_close_handler);
+}
+
+static int _set_nonblocking(int sockfd) {
+    int opts;
+    opts = fcntl(sockfd, F_GETFL);
+    if (opts < 0) 
+        return -1;
+    opts |= O_NONBLOCK;
+    if (fcntl(sockfd, F_SETFL, opts) < 0)
+        return -1;
+    return 0;
 }
