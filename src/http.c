@@ -72,20 +72,20 @@ const char*  request_get_header(request_t *request, const char *header_name) {
     return ((http_header_t*) ret->data)->value;
 }
 
-#define START_NEW_TOKEN(tok, req)                      \
+#define START_NEW_TOKEN(tok, req)                       \
     (tok = (req)->_buffer_in + (req)->_buf_in_idx)
 
-#define FILL_NEXT_CHAR(req, ch) \
+#define FILL_NEXT_CHAR(req, ch)                         \
     ((req)->_buffer_in[req->_buf_in_idx++] = (ch))
 
-#define FINISH_CUR_TOKEN(req) \
+#define FINISH_CUR_TOKEN(req)                           \
     ((req)->_buffer_in[(req)->_buf_in_idx++] = '\0' )
 
 #define EXPECT_CHAR(state, ch, expected_ch, next_state) \
-    if ((ch) == (expected_ch)) { \
-        state = (next_state); \
-    } else { \
-        state = PARSER_STATE_BAD_REQUEST; \
+    if ((ch) == (expected_ch)) {                        \
+        state = (next_state);                           \
+    } else {                                            \
+        state = PARSER_STATE_BAD_REQUEST;               \
     }
 
 
