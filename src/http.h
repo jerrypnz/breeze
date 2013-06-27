@@ -55,6 +55,10 @@ struct _request {
     char                    *method;
     http_version_e          version;
 
+    char                    *host;
+    size_t                  content_length;
+    connection_opt_e        connection;
+
     // Unresolved headers of the request
     http_header_t           headers[MAX_HEADER_SIZE];
     size_t                  header_count;
@@ -68,6 +72,7 @@ struct _request {
 
 request_t*   request_create();
 int          request_destroy(request_t *request);
+const char*  request_get_header(request_t *request, const char *header_name);
 int          request_parse_headers(request_t *request,
                                    const char *data,
                                    const size_t data_len,

@@ -148,6 +148,34 @@ void test_parse_invalid_version() {
     assert(request_destroy(req) == 0);
 }
 
+
+char* test_request_3 = 
+    "GET /home/hello.do?id=1001&name=hello HTTP/1.1\r\n"
+    "Host: www.javaeye.com\r\n"
+    "Connection: keep-alive\r\n"
+    "Content-Length: 42\r\n"
+    "Referer: http://www.javaeye.com/\r\n\r\n";
+
+void test_common_header_handling() {
+    request_t *req;
+    int     req_size, rc;
+    size_t  consumed_size;
+
+    req = request_create();
+    assert(req != NULL);
+    req_size = strlen(test_request_3);
+
+    printf("\n\nTesting common header handling \n");
+    rc = request_parse_headers(req, test_request_3, req_size, &consumed_size);
+    dump_request(req);
+    assert(rc == STATUS_COMPLETE);
+    assert(strcmp(req->host, "www.javaeye.com") == 0);
+    assert(req->content_length == 42);
+    assert(req->connection == CONN_KEEP_ALIVE);
+    assert(request_destroy(req) == 0);    
+}
+
+
 void dump_request(request_t *req) {
     int i;
 
@@ -169,6 +197,7 @@ void dump_request(request_t *req) {
 
 void assert_headers(request_t *req) {
     int expected_header_size, i;
+    const char* value;
 
     expected_header_size = sizeof(expected_headers) / sizeof(http_header_t);
 
@@ -179,6 +208,9 @@ void assert_headers(request_t *req) {
     for (i = 0; i < req->header_count; i++) {
         assert(strcmp(expected_headers[i].name,  req->headers[i].name) == 0);
         assert(strcmp(expected_headers[i].value, req->headers[i].value) == 0);
+        value = request_get_header(req, expected_headers[i].name);
+        assert(value != NULL);
+        assert(strcmp(expected_headers[i].value, value) == 0);
     }
 }
 
@@ -190,5 +222,6 @@ int main(int argc, const char *argv[])
     test_parse_once_with_extra_data();
     test_parse_multiple_times();
     test_parse_invalid_version();
+    test_common_header_handling();
     return 0;
 }

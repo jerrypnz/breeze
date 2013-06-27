@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 typedef enum _parser_state {
     PARSER_STATE_BAD_REQUEST = -1,
@@ -20,14 +21,26 @@ typedef enum _parser_state {
 } parser_state_e;
 
 
-static http_version_e _resolve_http_version(const char* version_str);
+typedef void (*http_header_callback)(request_t *req, http_header_t *header);
 
+typedef struct _header_command {
+    char                   *lower_name;
+    http_header_callback   callback;
+} header_command_t;
+
+static struct hsearch_data std_headers_hash;
+static int std_headers_hash_initialized = 0;
+
+static http_version_e _resolve_http_version(const char* version_str);
+static int init_std_headers_hash();
+static void handle_common_header(request_t *req, int header_index);
+static void strlowercase(const char *src, char *dst, size_t n);
 
 request_t* request_create() {
     request_t  *req;
     req = (request_t*) calloc(1, sizeof(request_t));
     if (req == NULL) {
-        fprintf(stderr, "Unable to malloc");
+        fprintf(stderr, "Unable to malloc\n");
         return NULL;
     }
     bzero(req, sizeof(request_t));
@@ -45,12 +58,26 @@ int request_destroy(request_t *req) {
     return 0;
 }
 
+const char*  request_get_header(request_t *request, const char *header_name) {
+    ENTRY          item, *ret;
+    char           header_name_lower[64];
+
+    strlowercase(header_name, header_name_lower, 64);
+    item.key = header_name_lower;
+
+    if (hsearch_r(item, FIND, &ret, &request->_header_hash) == 0) {
+        return NULL;
+    }
+
+    return ((http_header_t*) ret->data)->value;
+}
+
 #define START_NEW_TOKEN(tok, req)                      \
     (tok = (req)->_buffer_in + (req)->_buf_in_idx)
 
 #define FILL_NEXT_CHAR(req, ch) \
     ((req)->_buffer_in[req->_buf_in_idx++] = (ch))
-    
+
 #define FINISH_CUR_TOKEN(req) \
     ((req)->_buffer_in[(req)->_buf_in_idx++] = '\0' )
 
@@ -76,6 +103,10 @@ int request_parse_headers(request_t *req,
     req->_buffer_in[0] = '\0';
     req->_buf_in_idx = 0;
     req->header_count = 0;
+
+    if (std_headers_hash_initialized == 0) {
+        init_std_headers_hash();
+    }
 
     for (i = 0; i < data_len;){
 
@@ -184,6 +215,7 @@ int request_parse_headers(request_t *req,
                 if (ch == '\r') {
                     FINISH_CUR_TOKEN(req);
                     req->headers[req->header_count].value = cur_token;
+                    handle_common_header(req, req->header_count);
                     req->header_count++;
                     state = PARSER_STATE_HEADER_CR;
                     START_NEW_TOKEN(cur_token, req);
@@ -218,12 +250,12 @@ int request_parse_headers(request_t *req,
     }
 
     *consumed = i;
-    
+
     switch (state) {
         case PARSER_STATE_COMPLETE:
             rc = STATUS_COMPLETE;
             break;
-            
+
         case PARSER_STATE_BAD_REQUEST:
             rc = STATUS_ERROR;
             break;
@@ -246,4 +278,161 @@ static http_version_e _resolve_http_version(const char* version_str) {
     }
 
     return HTTP_VERSION_UNKNOW;
+}
+
+static void _handle_content_len(request_t *req, http_header_t *header) {
+    size_t   content_length;
+    printf("Setting content length\n");
+
+    content_length = (size_t) atol(header->value);
+    req->content_length = content_length;
+}
+
+static void _handle_host(request_t *req, http_header_t *header) {
+    printf("Setting host\n");
+    req->host = header->value;
+}
+
+static void _handle_connection(request_t *req, http_header_t *header) {
+    printf("Setting connection option\n");
+    if (strcasecmp("keep-alive", header->value) == 0) {
+        req->connection = CONN_KEEP_ALIVE;
+    }
+}
+
+static header_command_t std_headers[] = {
+    { "accept", NULL },
+    { "accept-charset", NULL },
+    { "accept-datetime", NULL },
+    { "accept-encoding", NULL },
+    { "accept-language", NULL },
+    { "accept-ranges", NULL },
+    { "access-control-allow-origin", NULL },
+    { "age", NULL },
+    { "allow", NULL },
+    { "authorization", NULL },
+    { "cache-control", NULL },
+    { "connection", _handle_connection },
+    { "content-disposition", NULL },
+    { "content-encoding", NULL },
+    { "content-language", NULL },
+    { "content-length", _handle_content_len },
+    { "content-location", NULL },
+    { "content-md5", NULL },
+    { "content-range", NULL },
+    { "content-security-policy", NULL },
+    { "content-type", NULL },
+    { "cookie", NULL },
+    { "dnt", NULL },
+    { "date", NULL },
+    { "etag", NULL },
+    { "expect", NULL },
+    { "expires", NULL },
+    { "from", NULL },
+    { "front-end-https", NULL },
+    { "host", _handle_host },
+    { "if-match", NULL },
+    { "if-modified-since", NULL },
+    { "if-none-match", NULL },
+    { "if-range", NULL },
+    { "if-unmodified-since", NULL },
+    { "last-modified", NULL },
+    { "link", NULL },
+    { "location", NULL },
+    { "max-forwards", NULL },
+    { "origin", NULL },
+    { "p3p", NULL },
+    { "pragma", NULL },
+    { "proxy-authenticate", NULL },
+    { "proxy-authorization", NULL },
+    { "proxy-connection", NULL },
+    { "range", NULL },
+    { "referer", NULL },
+    { "refresh", NULL },
+    { "retry-after", NULL },
+    { "server", NULL },
+    { "set-cookie", NULL },
+    { "status", NULL },
+    { "strict-transport-security", NULL },
+    { "te", NULL },
+    { "trailer", NULL },
+    { "transfer-encoding", NULL },
+    { "upgrade", NULL },
+    { "user-agent", NULL },
+    { "vary", NULL },
+    { "via", NULL },
+    { "www-authenticate", NULL },
+    { "warning", NULL },
+    { "x-att-deviceid", NULL },
+    { "x-content-security-policy", NULL },
+    { "x-content-type-options", NULL },
+    { "x-forwarded-for", NULL },
+    { "x-forwarded-proto", NULL },
+    { "x-frame-options", NULL },
+    { "x-powered-by", NULL },
+    { "x-requested-with", NULL },
+    { "x-wap-profile", NULL },
+    { "x-webkit-csp", NULL },
+    { "x-xss-protection", NULL },
+    { "x-ua-compatible", NULL },
+};
+
+static int init_std_headers_hash() {
+    int i;
+    size_t size;
+    ENTRY item, *ret;
+
+    size = sizeof(std_headers)/sizeof(std_headers[0]);
+
+    bzero(&std_headers_hash, sizeof(struct hsearch_data));
+    if (hcreate_r(sizeof(std_headers) * 2, &std_headers_hash) == 0) {
+        perror("Error creating standard headers hash");
+        return -1;
+    }
+    for (i = 0; i < size; i++) {
+        item.key = std_headers[i].lower_name;
+        item.data = std_headers[i].callback;
+        if (hsearch_r(item, ENTER, &ret, &std_headers_hash) == 0) {
+            fprintf(stderr, "Error entering standard header %s to hash\n", item.key);
+        }
+    }
+    std_headers_hash_initialized = 1;
+    return 0;
+}
+
+__inline__ static void strlowercase(const char *src, char *dst, size_t n) {
+    int i;
+    const char *p;
+    for (i = 0, p = src;
+         i < n && *p != '\0';
+         i++, p++) {
+        dst[i] = tolower(*p);
+    }
+    dst[i] = '\0';
+}
+
+static void handle_common_header(request_t *req, int header_index) {
+    ENTRY           ent, *ret;
+    http_header_t  *header;
+    char            header_lowercase[64];
+    http_header_callback callback = NULL;
+
+    header = req->headers + header_index;
+    strlowercase(header->name, header_lowercase, 64);
+    ent.key = header_lowercase;
+    if (hsearch_r(ent, FIND, &ret, &std_headers_hash) == 0) {
+        return;
+    }
+
+    callback = (http_header_callback) ret->data;
+    if (callback != NULL) {
+        callback(req, header);
+    }
+
+    ent.key = ret->key;
+    ent.data = header;
+
+    if (hsearch_r(ent, ENTER, &ret, &req->_header_hash) != 0) {
+        printf("Successfully add known header %s to header hash\n", ent.key);
+    }
 }
