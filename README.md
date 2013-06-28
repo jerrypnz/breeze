@@ -1,4 +1,7 @@
-# Simple HTTP Server Inspired by Tornado
+# Breeze
+
+Simple HTTP Server Inspired by Tornado. It is a weekend project for me to practise C programming and
+Linux API.
 
 This is a simple HTTP server inspired by [Tornado Web Server](https://github.com/facebook/tornado),
 for practising my Linux programming kills. No third-party libraries are used, only glibc.
