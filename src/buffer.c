@@ -1,12 +1,11 @@
 #include "buffer.h"
+#include "common.h"
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/uio.h>
-
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef unsigned char byte_t;
 
