@@ -70,6 +70,10 @@ const http_header_t     expected_headers[] = {
 void dump_request(request_t *req);
 void assert_headers(request_t *req);
 
+static void assert_equals(const char* expected, const char *actual) {
+    assert(strcmp(expected, actual) == 0);
+}
+
 void test_parse_once() {
     request_t  *req;
     size_t     req_size, consumed_size;
@@ -214,6 +218,67 @@ void assert_headers(request_t *req) {
     }
 }
 
+void dump_response(response_t *resp) {
+    int i;
+
+    printf("--------- Response State -----------------------\n");
+    printf("Header count: %zu\n", resp->header_count);
+    printf("Headers: \n");
+    printf("------------\n");
+
+    for (i = 0; i < resp->header_count; i++) {
+        printf("\r%s: %s\n", resp->headers[i].name, resp->headers[i].value);
+    }
+
+    printf("----------------------------------------------\n");
+}
+
+
+void test_response_set_header_basic() {
+    response_t *response;
+    response = response_create();
+    assert(response != NULL);
+
+    // Basic tests
+    assert(response_set_header(response, "Content-Length", "201") == 0);
+    assert(response_set_header(response, "Content-Type", "application/html") == 0);
+
+    printf("After setting content-length and content-type\n");
+    dump_response(response);
+
+    assert(response->header_count == 2);
+    assert_equals(response->headers[0].name, "Content-Length");
+    assert_equals(response->headers[0].value, "201");
+
+    assert_equals(response->headers[1].name, "Content-Type");
+    assert_equals(response->headers[1].value, "application/html");
+
+    assert_equals(response_get_header(response, "Content-Type"), "application/html");
+    assert_equals(response_get_header(response, "Content-type"), "application/html");
+
+    // Replace header value
+    assert(response_set_header(response, "Content-Length", "1024") == 0);
+    printf("After setting content-length again\n");
+    dump_response(response);
+
+    assert_equals(response->headers[0].value, "1024");
+    assert_equals(response_get_header(response, "content-length"), "1024");
+
+    // Set unknow, non-standard headers
+    assert(response_set_header(response, "X-Foobar", "foobar") == 0);
+    printf("After setting non-standard header\n");
+    dump_response(response);
+
+    assert_equals(response->headers[2].name, "X-Foobar");
+    assert_equals(response->headers[2].value, "foobar");
+    assert_equals(response_get_header(response, "x-Foobar"), "foobar");
+
+    assert_equals(response->_buffer, "x-foobar");
+    assert(response->_buf_idx == strlen("x-foobar") + 1);
+
+    assert(response_destroy(response) == 0);
+}
+
 int main(int argc, const char *argv[])
 {
     print_stacktrace_on_error();
@@ -223,5 +288,6 @@ int main(int argc, const char *argv[])
     test_parse_multiple_times();
     test_parse_invalid_version();
     test_common_header_handling();
+    test_response_set_header_basic();
     return 0;
 }

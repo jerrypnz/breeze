@@ -73,13 +73,13 @@ const char*  request_get_header(request_t *request, const char *header_name) {
 }
 
 #define START_NEW_TOKEN(tok, req)                       \
-    (tok = (req)->_buffer_in + (req)->_buf_in_idx)
+    (tok = (req)->_buffer + (req)->_buf_idx)
 
 #define FILL_NEXT_CHAR(req, ch)                         \
-    ((req)->_buffer_in[req->_buf_in_idx++] = (ch))
+    ((req)->_buffer[req->_buf_idx++] = (ch))
 
 #define FINISH_CUR_TOKEN(req)                           \
-    ((req)->_buffer_in[(req)->_buf_in_idx++] = '\0' )
+    ((req)->_buffer[(req)->_buf_idx++] = '\0' )
 
 #define EXPECT_CHAR(state, ch, expected_ch, next_state) \
     if ((ch) == (expected_ch)) {                        \
@@ -97,11 +97,11 @@ int request_parse_headers(request_t *req,
     http_version_e      ver;
     int                 i, rc;
     char                ch;
-    char                *cur_token = req->_buffer_in;
+    char                *cur_token = req->_buffer;
     parser_state_e      state = PARSER_STATE_METHOD;
 
-    req->_buffer_in[0] = '\0';
-    req->_buf_in_idx = 0;
+    req->_buffer[0] = '\0';
+    req->_buf_idx = 0;
     req->header_count = 0;
 
     if (std_headers_hash_initialized == 0) {
@@ -435,4 +435,84 @@ static void handle_common_header(request_t *req, int header_index) {
     if (hsearch_r(ent, ENTER, &ret, &req->_header_hash) != 0) {
         printf("Successfully add known header %s to header hash\n", ent.key);
     }
+}
+
+response_t* response_create() {
+    response_t   *resp;
+
+    resp = (response_t*) calloc(1, sizeof(response_t));
+    if (resp == NULL) {
+        fprintf(stderr, "Error allocating memory");
+        return NULL;
+    }
+
+    bzero(resp, sizeof(response_t));
+    if (hcreate_r(MAX_HEADER_SIZE, &resp->_header_hash) == 0) {
+        perror("Error creating header hash table");
+        free(resp);
+        return NULL;
+    }
+
+    return resp;
+}
+
+int response_destroy(response_t *response) {
+    hdestroy_r(&response->_header_hash);
+    free(response);
+    return 0;
+}
+
+const char* response_get_header(response_t *response, const char *header_name) {
+    ENTRY          item, *ret;
+    char           header_name_lower[64];
+
+    strlowercase(header_name, header_name_lower, 64);
+    item.key = header_name_lower;
+
+    if (hsearch_r(item, FIND, &ret, &response->_header_hash) == 0) {
+        return NULL;
+    }
+
+    return ((http_header_t*) ret->data)->value;
+}
+
+int response_set_header(response_t *response, char *header_name, char *header_value) {
+    ENTRY          ent, *ret;
+    http_header_t  *header;
+    char           header_lowercase[64];
+    size_t         n, len;
+
+    strlowercase(header_name, header_lowercase, 64);
+    ent.key = header_lowercase;
+    if (hsearch_r(ent, FIND, &ret, &response->_header_hash) != 0) {
+        header = (http_header_t*) ret->data;
+        header->value = header_value;
+        return 0;
+    }
+
+    header = response->headers + response->header_count++;
+    header->name = header_name;
+    header->value = header_value;
+
+    if (hsearch_r(ent, FIND, &ret, &std_headers_hash) != 0) {
+        ent.key = ret->key;
+    } else {
+        len = strlen(header_lowercase) + 1;
+        n = MIN(len, MAX_HEADER_SIZE - response->_buf_idx);
+        ent.key = strncpy(response->_buffer + response->_buf_idx,
+                          header_lowercase,
+                          n);
+        response->_buf_idx += n;
+    }
+    ent.data = header;
+    if (hsearch_r(ent, ENTER, &ret, &response->_header_hash) == 0) {
+        fprintf(stderr, "Error inputing header to header hash: %s", header_name);
+        return -1;
+    }
+    return 0;
+}
+
+int response_write(response_t *response,
+                   handler_func next_handler) {
+    return 0;
 }
