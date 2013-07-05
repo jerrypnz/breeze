@@ -2,17 +2,44 @@
 
 #define __IOSTREAM_H
 
-#include <stddef.h>
 #include "ioloop.h"
+#include "buffer.h"
+#include <stddef.h>
 
 struct _iostream;
-
 typedef struct _iostream iostream_t;
 
 typedef void (*read_handler)(iostream_t *stream, void *data, size_t len);
 typedef void (*write_handler)(iostream_t *stream);
 typedef void (*error_handler)(iostream_t *stream, unsigned int events);
 typedef void (*close_handler)(iostream_t *stream);
+
+struct _iostream {
+    int         fd;
+    int         state;
+    ioloop_t    *ioloop;
+
+    read_handler    read_callback;
+    read_handler    stream_callback;
+    write_handler   write_callback;
+    error_handler   error_callback;
+    close_handler   close_callback;
+
+    int         read_type;
+    size_t      read_bytes;
+    char        *read_delimiter;
+
+    unsigned int    events;
+
+    buffer_t    *read_buf;
+    size_t      read_buf_size;
+    size_t      read_buf_cap;
+    buffer_t    *write_buf;
+    size_t      write_buf_size;
+    size_t      write_buf_cap;
+
+    int         sendfile_fd;
+};
 
 iostream_t  *iostream_create(ioloop_t *loop, int sockfd, size_t read_buf_size, size_t write_buf_size);
 

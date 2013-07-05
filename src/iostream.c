@@ -19,34 +19,6 @@ enum STREAM_STATE {
     CLOSED = 2
 };
 
-struct _iostream {
-    int         fd;
-    int         state;
-    ioloop_t    *ioloop;
-
-    read_handler    read_callback;
-    read_handler    stream_callback;
-    write_handler   write_callback;
-    error_handler   error_callback;
-    close_handler   close_callback;
-
-    int         read_type;
-    size_t      read_bytes;
-    char        *read_delimiter;
-
-    unsigned int    events;
-
-    buffer_t    *read_buf;
-    size_t      read_buf_size;
-    size_t      read_buf_cap;
-    buffer_t    *write_buf;
-    size_t      write_buf_size;
-    size_t      write_buf_cap;
-
-    int         sendfile_fd;
-};
-
-
 #define is_reading(stream) ((stream)->read_callback != NULL)
 #define is_writing(stream) ((stream)->write_callback != NULL)
 #define is_closed(stream)  ((stream)->state == CLOSED)
