@@ -1,6 +1,5 @@
 #include "ioloop.h"
 #include "iostream.h"
-#include "handler.h"
 #include "http.h"
 
 #include <stdio.h>
@@ -26,7 +25,7 @@ typedef enum _server_state {
 
 struct _server {
     unsigned short  port;
-    handler_t       *handler;
+    handler_func    handler;
 
     server_state    state;
     int             listen_fd;
@@ -41,6 +40,7 @@ static void _server_connection_handler(ioloop_t *loop,
                                        unsigned int events,
                                        void *args);
 static void _server_connection_close_handler(iostream_t *stream);
+static void _on_http_header_data(iostream_t *stream, void *data, size_t len);
 static int _set_nonblocking(int sockfd);
 
 server_t* server_create(unsigned short port, char *confile) {
@@ -159,6 +159,35 @@ static void _server_connection_handler(ioloop_t *loop,
     
     stream = iostream_create(loop, conn_fd, 1024, 1024);
     iostream_set_close_handler(stream, connection_close_handler);
+    iostream_read_until(stream, "\r\n\r\n", _on_http_header_data);
+}
+
+static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
+    request_t      *req;
+    response_t     *resp;
+    handler_ctx_t  *ctx;
+    size_t         consumed;
+    // TODO Implementation
+
+    ctx = NULL;
+    req = request_create();
+    resp = response_create();
+
+    if (req == NULL || resp == NULL) {
+        fprintf(stderr, "Error creating request/response\n");
+        iostream_close(stream);
+        return;
+    }
+
+    if (request_parse_headers(req, (char*)data, len, &consumed) != STATUS_COMPLETE) {
+        fprintf(stderr, "Error parsing request headers\n");
+        iostream_close(stream);
+        return;
+    }
+
+    req->_stream = stream;
+    resp->_stream = stream;
+    
 }
 
 static int _set_nonblocking(int sockfd) {
