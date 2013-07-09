@@ -39,9 +39,13 @@ struct _iostream {
     size_t      write_buf_cap;
 
     int         sendfile_fd;
+
+    void        *user_data;
 };
 
-iostream_t  *iostream_create(ioloop_t *loop, int sockfd, size_t read_buf_size, size_t write_buf_size);
+iostream_t  *iostream_create(ioloop_t *loop, int sockfd,
+                             size_t read_buf_size, size_t write_buf_size,
+                             void *user_data);
 
 int     iostream_close(iostream_t *stream);
 int     iostream_destroy(iostream_t *stream);

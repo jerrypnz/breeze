@@ -49,7 +49,7 @@ static void connection_handler(ioloop_t *loop, int listen_fd, unsigned int event
         perror("Error configuring Non-blocking");
         return;
     }
-    stream = iostream_create(loop, conn_fd, 1024, 1024);
+    stream = iostream_create(loop, conn_fd, 1024, 1024, NULL);
     iostream_set_close_handler(stream, connection_close_handler);
     switch(mode) {
         case 0:

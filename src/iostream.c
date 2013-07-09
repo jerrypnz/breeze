@@ -56,7 +56,8 @@ static void _stream_consumer_func(void *data, size_t len, void *args);
 iostream_t *iostream_create(ioloop_t *loop,
                             int sockfd,
                             size_t read_buf_capacity,
-                            size_t write_buf_capacity) {
+                            size_t write_buf_capacity,
+                            void *user_data) {
     iostream_t  *stream;
     buffer_t    *in_buf, *out_buf;
 
@@ -91,6 +92,7 @@ iostream_t *iostream_create(ioloop_t *loop,
     stream->close_callback = NULL;
     stream->error_callback = NULL;
     stream->sendfile_fd = -1;
+    stream->user_data = user_data;
 
     if (ioloop_add_handler(stream->ioloop,
                            stream->fd,
