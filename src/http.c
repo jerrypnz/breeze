@@ -36,7 +36,7 @@ static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
 static void strlowercase(const char *src, char *dst, size_t n);
 
-request_t* request_create() {
+request_t* request_create(connection_t *conn) {
     request_t  *req;
     req = (request_t*) calloc(1, sizeof(request_t));
     if (req == NULL) {
@@ -49,6 +49,7 @@ request_t* request_create() {
         free(req);
         return NULL;
     }
+    req->_conn = conn;
     return req;
 }
 
@@ -437,7 +438,7 @@ static void handle_common_header(request_t *req, int header_index) {
     }
 }
 
-response_t* response_create() {
+response_t* response_create(connection_t *conn) {
     response_t   *resp;
 
     resp = (response_t*) calloc(1, sizeof(response_t));
@@ -452,6 +453,8 @@ response_t* response_create() {
         free(resp);
         return NULL;
     }
+
+    resp->_conn = conn;
 
     return resp;
 }

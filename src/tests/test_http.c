@@ -79,7 +79,7 @@ void test_parse_once() {
     size_t     req_size, consumed_size;
     int        rc;
 
-    req = request_create();
+    req = request_create(NULL);
     assert(req != NULL);
     printf("\n\nTesting parsing all in one time\n");
     req_size = strlen(test_request);
@@ -98,7 +98,7 @@ void test_parse_once_with_extra_data() {
     size_t     req_size, consumed_size;
     int        rc;    
 
-    req = request_create();
+    req = request_create(NULL);
     assert(req != NULL);
     printf("\n\nTesting parsing all in one time with extra data left\n");
     req_size = strlen(test_request_2);
@@ -118,7 +118,7 @@ void test_parse_multiple_times() {
     size_t     part1_size;
     char       *data;
 
-    req = request_create();
+    req = request_create(NULL);
     assert(req != NULL);
     printf("\n\nTesting parsing all in multiple time\n");
     data = test_request;
@@ -141,7 +141,7 @@ void test_parse_invalid_version() {
     int     req_size, rc;
     size_t  consumed_size;
 
-    req = request_create();
+    req = request_create(NULL);
     assert(req != NULL);
     req_size = strlen(invalid_req);
 
@@ -165,7 +165,7 @@ void test_common_header_handling() {
     int     req_size, rc;
     size_t  consumed_size;
 
-    req = request_create();
+    req = request_create(NULL);
     assert(req != NULL);
     req_size = strlen(test_request_3);
 
@@ -236,7 +236,7 @@ void dump_response(response_t *resp) {
 
 void test_response_set_header_basic() {
     response_t *response;
-    response = response_create();
+    response = response_create(NULL);
     assert(response != NULL);
 
     // Basic tests

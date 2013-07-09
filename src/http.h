@@ -3,27 +3,65 @@
 
 #define _GNU_SOURCE
 
+#include "ioloop.h"
 #include "iostream.h"
+#include <search.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <stddef.h>
 #include <time.h>
-#include <search.h>
 
 #define REQUEST_BUFFER_SIZE     2048
 #define RESPONSE_BUFFER_SIZE    2048
 #define MAX_HEADER_SIZE         25
 
-struct _request;
-struct _response;
-struct _ctx_node;
-struct _handler_ctx;
-struct _http_status;
-
+/*
+ * HTTP request/response
+ */
 typedef struct _request         request_t;
 typedef struct _response        response_t;
 typedef struct _http_header     http_header_t;
 typedef struct _http_status     http_status_t;
 typedef struct _handler_ctx     handler_ctx_t;
 typedef struct _ctx_node        ctx_node_t;
+
+/*
+ * HTTP server/connection
+ */
+typedef struct _server server_t;
+typedef struct _connection connection_t;
+
+/*
+ * HTTP handler function
+ */
+typedef int (*handler_func)(request_t *request, response_t *response, handler_ctx_t *ctx);
+
+request_t*   request_create(connection_t *conn);
+int          request_destroy(request_t *request);
+const char*  request_get_header(request_t *request, const char *header_name);
+int          request_parse_headers(request_t *request,
+                                   const char *data,
+                                   const size_t data_len,
+                                   size_t *consumed);
+
+response_t*    response_create(connection_t *conn);
+int            response_destroy(response_t *response);
+const char*    response_get_header(response_t *response, const char *header_name);
+int            response_set_header(response_t *response, char *name, char *value);
+int            response_send_headers(response_t *response);
+int            response_write(response_t *response, handler_func next_handler);
+
+connection_t*  connection_accept(server_t *server, int listen_fd); 
+int            connection_close(connection_t *conn);
+int            connection_destroy(connection_t *conn);
+int            connection_run(connection_t *conn);
+int            connection_finish_current_request(connection_t *conn);
+
+server_t*      server_create(unsigned short port, char *confile);
+int            server_destroy(server_t *server);
+int            server_start(server_t *server);
+int            server_stop(server_t *server);
 
 typedef enum {
     HTTP_VERSION_UNKNOW = -1,
@@ -87,7 +125,7 @@ struct _request {
     http_header_t           headers[MAX_HEADER_SIZE];
     size_t                  header_count;
 
-    iostream_t              *_stream;
+    connection_t            *_conn;
 
     struct hsearch_data     _header_hash;
 
@@ -117,27 +155,38 @@ struct _response {
     char                 _buffer[RESPONSE_BUFFER_SIZE];
     size_t               _buf_idx;
     int                  _header_sent;
-    iostream_t           *_stream;
+    connection_t         *_conn;
 };
 
-/*
- * HTTP handler function
- */
-typedef int (*handler_func)(request_t *request, response_t *response, handler_ctx_t *ctx);
+typedef enum _server_state {
+    SERVER_INIT = 0,
+    SERVER_RUNNING,
+    SERVER_STOPPED
+} server_state;
 
-request_t*   request_create();
-int          request_destroy(request_t *request);
-const char*  request_get_header(request_t *request, const char *header_name);
-int          request_parse_headers(request_t *request,
-                                   const char *data,
-                                   const size_t data_len,
-                                   size_t *consumed);
+struct _server {
+    unsigned short  port;
+    handler_func    handler;
 
-response_t*    response_create();
-int            response_destroy(response_t *response);
-const char*    response_get_header(response_t *response, const char *header_name);
-int            response_set_header(response_t *response, char *name, char *value);
-int            response_write(response_t *response, handler_func next_handler);
+    server_state    state;
+    int             listen_fd;
+    ioloop_t        *ioloop;
+};
+
+typedef enum _connection_state {
+    CONN_ACTIVE,
+    CONN_CLOSING,
+    CONN_CLOSED
+} conn_stat_e;
+
+struct _connection {
+    server_t           *server;
+    iostream_t         *stream;
+    struct sockaddr_in remote_addr;
+    char               remote_ip[20];
+    unsigned short     remote_port;
+    conn_stat_e        state;
+};
 
 
 #endif /* end of include guard: __HTTP_H */

@@ -4,7 +4,7 @@ LDFLAGS ?= -g -rdynamic
 
 objects = ioloop.o buffer.o iostream.o http.o server.o location.o stacktrace.o
 testobjs = test_buffer.o test_ioloop.o test_iostream.o test_http.o
-executables = test_buffer test_ioloop test_iostream test_http
+executables = test_buffer test_ioloop test_iostream test_http test_http_server
 
 vpath %.c tests
 
@@ -19,6 +19,7 @@ test_%: test_%.o %.o
 
 test_iostream: ioloop.o buffer.o
 test_http: stacktrace.o
+test_http_server: http_connection.o iostream.o ioloop.o buffer.o http.o
 
 .PHONY: clean
 clean:
