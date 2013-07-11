@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void dump_request(request_t *req) {
     int i;
@@ -22,7 +23,7 @@ void dump_request(request_t *req) {
     printf("----------------------------------------------\n");
 }
 
-int write_finished(iostream_t *stream) {
+void write_finished(iostream_t *stream) {
     printf("finished request\n");
     iostream_close(stream);
 }
@@ -43,7 +44,7 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
              "HTTP/1.1 200 OK\r\n"
              "Connection: close\r\n"
              "Content-Type: text/html\r\n"
-             "Content-Length: %d\r\n"
+             "Content-Length: %zu\r\n"
              "\r\n"
              "%s",
              strlen(response),
@@ -60,9 +61,10 @@ int main(int argc, char** args) {
 
     if (server == NULL) {
         fprintf(stderr, "Error creating server\n");
-        return;
+        return -1;
     }
 
     server->handler = foobar_handler;
     server_start(server);
+    return 0;
 }

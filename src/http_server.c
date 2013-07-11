@@ -18,7 +18,6 @@
 
 
 static int _server_init(server_t *server);
-static int _server_run(server_t *server);
 static void _server_connection_handler(ioloop_t *loop,
                                        int listen_fd,
                                        unsigned int events,
@@ -38,10 +37,10 @@ server_t* server_create(unsigned short port, char *confile) {
         fprintf(stderr, "Error creating ioloop");
         return NULL;
     }
-    // TODO Parse and create site?
     server->port = port;
     server->ioloop = ioloop;
     server->state = SERVER_INIT;
+    return server;
 }
 
 int server_destroy(server_t *server) {
