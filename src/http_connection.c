@@ -21,6 +21,8 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     iostream_t   *stream;
     socklen_t    addr_len;
     int          conn_fd;
+    request_t    req;
+    response_t   resp;
 
     conn = (connection_t*) calloc(1, sizeof(connection_t));
     if (conn == NULL) {
@@ -57,6 +59,8 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     inet_ntop(AF_INET, &conn->remote_addr.sin_addr, conn->remote_ip, 20);
     conn->remote_port = conn->remote_addr.sin_port;
     conn->state = CONN_ACTIVE;
+    conn->request  = request_create(conn);
+    conn->response = response_create(conn);
     
     return conn;
 
@@ -85,12 +89,11 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
     response_t     *resp;
     handler_ctx_t  *ctx;
     size_t         consumed;
-    // TODO Implementation
 
     ctx = NULL;
     conn = (connection_t*) stream->user_data;
-    req = request_create(conn);
-    resp = response_create(conn);
+    req = conn->request;
+    resp = conn->response;
 
     if (req == NULL || resp == NULL) {
         fprintf(stderr, "Error creating request/response\n");
@@ -104,6 +107,9 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
         connection_close(conn);
         return;
     }
+
+    // TODO Handle Unknown HTTP version
+    resp->version = req->version;
 
     conn->server->handler(req, resp, ctx);
 }

@@ -5,7 +5,7 @@
 enum _return_status {
     STATUS_ERROR = -1,
     STATUS_COMPLETE = 0,
-    STATUS_CONTINUE = 1
+    STATUS_INCOMPLETE = 1
 };
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

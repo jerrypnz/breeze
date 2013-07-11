@@ -18,7 +18,7 @@ test_%: test_%.o %.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 test_iostream: ioloop.o buffer.o
-test_http: stacktrace.o
+test_http: stacktrace.o iostream.o ioloop.o buffer.o http_connection.o
 test_http_server: http_connection.o iostream.o ioloop.o buffer.o http.o
 
 .PHONY: clean

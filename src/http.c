@@ -35,6 +35,25 @@ static http_version_e _resolve_http_version(const char* version_str);
 static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
 static void strlowercase(const char *src, char *dst, size_t n);
+static void set_common_headers(response_t *response);
+static int write_headers(response_t *response);
+static void on_write_finished(iostream_t *stream);
+
+inline static const char* str_http_ver(http_version_e ver) {
+    switch (ver) {
+    case HTTP_VERSION_1_1:
+        return "1.1";
+
+    case HTTP_VERSION_1_0:
+        return "1.0";
+
+    case HTTP_VERSION_0_9:
+        return "0.9";
+
+    default:
+        return "1.1";   
+    }
+}
 
 request_t* request_create(connection_t *conn) {
     request_t  *req;
@@ -51,6 +70,12 @@ request_t* request_create(connection_t *conn) {
     }
     req->_conn = conn;
     return req;
+}
+
+void request_reset(request_t *req) {
+    connection_t *conn = req->_conn;
+    bzero(req, sizeof(request_t));
+    req->_conn = conn;
 }
 
 int request_destroy(request_t *req) {
@@ -262,7 +287,7 @@ int request_parse_headers(request_t *req,
             break;
 
         default:
-            rc = STATUS_CONTINUE;
+            rc = STATUS_INCOMPLETE;
             break;
     }
 
@@ -438,6 +463,39 @@ static void handle_common_header(request_t *req, int header_index) {
     }
 }
 
+
+// HTTP common status codes
+
+// 1xx informational
+http_status_t STATUS_CONTINUE = {100, "Continue"};
+
+// 2xx success
+http_status_t STATUS_OK = {200, "OK"};
+http_status_t STATUS_CREATED = {201, "Created"};
+http_status_t STATUS_ACCEPTED = {202, "Accepted"};
+http_status_t STATUS_NO_CONTENT = {204, "No Content"};
+
+// 3xx redirection
+http_status_t STATUS_MOVED = {301, "Moved Permanently"};
+http_status_t STATUS_FOUND = {302, "Found"};
+http_status_t STATUS_SEE_OTHER = {303, "See Other"};
+http_status_t STATUS_NOT_MODIFIED = {304, "Not Modified"};
+
+// 4xx client errors
+http_status_t STATUS_BAD_REQUEST = {400, "Bad Request"};
+http_status_t STATUS_UNAUTHORIZED = {401, "Unauthorized"};
+http_status_t STATUS_FORBIDDEN = {403, "Forbidden"};
+http_status_t STATUS_NOT_FOUND = {404, "Not Found"};
+http_status_t STATUS_METHOD_NOT_ALLOWED = {405, "Method Not Allowed"};
+
+// 5xx server errors
+http_status_t STATUS_INTERNAL_ERROR = {500, "Internal Server Error"};
+http_status_t STATUS_NOT_IMPLEMENTED = {501, "Not Implemented"};
+http_status_t STATUS_BAD_GATEWAY = {502, "Bad Gateway"};
+http_status_t STATUS_SERVICE_UNAVAILABLE = {503, "Service Unavailable"};
+http_status_t STATUS_GATEWAY_TIMEOUT = {504, "Gateway Timeout"};
+
+
 response_t* response_create(connection_t *conn) {
     response_t   *resp;
 
@@ -455,8 +513,19 @@ response_t* response_create(connection_t *conn) {
     }
 
     resp->_conn = conn;
+    // Content Length of -1 means we do not handle content length
+    resp->content_length = -1;
 
     return resp;
+}
+
+void response_reset(response_t *response) {
+    connection_t  *conn = response->_conn;
+    hdestroy_r(&response->_header_hash);
+    bzero(response, sizeof(response_t));
+
+    response->_conn = conn;
+    response->content_length = -1;
 }
 
 int response_destroy(response_t *response) {
@@ -479,12 +548,28 @@ const char* response_get_header(response_t *response, const char *header_name) {
     return ((http_header_t*) ret->data)->value;
 }
 
+char* response_alloc(response_t *response, size_t n) {
+    char *res;
+    if (response->_buf_idx + n > RESPONSE_BUFFER_SIZE) {
+        fprintf(stderr, "Response buffer insufficient\n");
+        return NULL;
+    }
+    res = response->_buffer + response->_buf_idx;
+    response->_buf_idx += n;
+    return res;
+}
+
 int response_set_header(response_t *response, char *header_name, char *header_value) {
     ENTRY          ent, *ret;
     http_header_t  *header;
     char           header_lowercase[64];
-    size_t         n, len;
+    char           *keybuf;
+    size_t         n;
 
+    if (response->_header_sent) {
+        fprintf(stderr, "Headers already committed");
+        return -1;
+    }
     strlowercase(header_name, header_lowercase, 64);
     ent.key = header_lowercase;
     if (hsearch_r(ent, FIND, &ret, &response->_header_hash) != 0) {
@@ -500,12 +585,12 @@ int response_set_header(response_t *response, char *header_name, char *header_va
     if (hsearch_r(ent, FIND, &ret, &std_headers_hash) != 0) {
         ent.key = ret->key;
     } else {
-        len = strlen(header_lowercase) + 1;
-        n = MIN(len, MAX_HEADER_SIZE - response->_buf_idx);
-        ent.key = strncpy(response->_buffer + response->_buf_idx,
-                          header_lowercase,
-                          n);
-        response->_buf_idx += n;
+        n = strlen(header_lowercase) + 1;
+        keybuf = response_alloc(response, n);
+        if (keybuf == NULL) {
+            return -1;
+        }
+        ent.key = strncpy(keybuf, header_lowercase, n);
     }
     ent.data = header;
     if (hsearch_r(ent, ENTER, &ret, &response->_header_hash) == 0) {
@@ -515,7 +600,104 @@ int response_set_header(response_t *response, char *header_name, char *header_va
     return 0;
 }
 
-int response_write(response_t *response,
-                   handler_func next_handler) {
+static void set_common_headers(response_t *response) {
+    char *keybuf;
+    size_t len = response->content_length;
+    int n;
+    
+    if (len >= 0) {
+        keybuf = response->_buffer + response->_buf_idx;
+        n = snprintf(keybuf,
+                     RESPONSE_BUFFER_SIZE - response->_buf_idx,
+                     "%ld",
+                     response->content_length);
+
+        response->_buf_idx += (n + 1);
+        response_set_header(response, "Content-Length", keybuf);
+    }
+
+    switch(response->connection) {
+    case CONN_KEEP_ALIVE:
+        //TODO Handle keep-alive time
+        response_set_header(response, "Connection", "keep-alive");
+        break;
+
+    default:
+        response_set_header(response, "Connection", "close");
+        break;
+    }
+}
+
+static int write_headers(response_t *response) {
+    char           buffer[RESPONSE_BUFFER_SIZE];
+    int            i, n, buf_len = 0;
+    http_header_t  *header;
+    
+    set_common_headers(response);
+    // Write status line
+    n = snprintf(buffer,
+                 RESPONSE_BUFFER_SIZE,
+                 "HTTP/%s %d %s\r\n",
+                 str_http_ver(response->version),
+                 response->status.code,
+                 response->status.msg);
+    buf_len += n;
+
+    // Write headers
+    for (i = 0; i < response->header_count; i++) {
+        header = response->headers + i;
+        n = snprintf(buffer + buf_len,
+                     RESPONSE_BUFFER_SIZE - buf_len,
+                     "%s: %s\r\n",
+                     header->name,
+                     header->value);
+        buf_len += n;
+    }
+
+    // Empty line between headers and body
+    buffer[buf_len++] = '\r';
+    buffer[buf_len++] = '\n';
+
+    if (iostream_write(response->_conn->stream, buffer, buf_len, NULL) < 0) {
+        return -1;
+    }
     return 0;
+}
+
+int response_write(response_t *response,
+                   const char *data,
+                   const size_t data_len,
+                   handler_func next_handler) {
+    if (!response->_header_sent) {
+        if (write_headers(response) < 0) {
+            fprintf(stderr, "Error writing headers\n");
+            connection_close(response->_conn);
+            return -1;
+        }
+        response->_header_sent = 1;
+    }
+    response->_next_handler = next_handler;
+    if (iostream_write(response->_conn->stream,
+                       data, data_len, on_write_finished) < 0) {
+        fprintf(stderr, "Error writing body\n");
+        connection_close(response->_conn);
+        return -1;
+    }
+    return 0;
+}
+
+static void on_write_finished(iostream_t *stream) {
+    connection_t  *conn;
+    request_t     *req;
+    response_t    *resp;
+    handler_func  handler;
+    
+    conn = (connection_t*) stream->user_data;
+    req = conn->request;
+    resp = conn->response;
+    handler = resp->_next_handler;
+
+    if (handler != NULL) {
+        handler(req, resp, NULL);
+    }
 }

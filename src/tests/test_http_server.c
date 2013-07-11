@@ -23,9 +23,10 @@ void dump_request(request_t *req) {
     printf("----------------------------------------------\n");
 }
 
-void write_finished(iostream_t *stream) {
+int bar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     printf("finished request\n");
-    iostream_close(stream);
+    iostream_close(req->_conn->stream);
+    return 0;
 }
 
 int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
@@ -37,21 +38,16 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
         "<p>Hello world!</p>"
         "</body>"
         "</html>";
-    char buffer[2048];
-
-    snprintf(buffer,
-             2048,
-             "HTTP/1.1 200 OK\r\n"
-             "Connection: close\r\n"
-             "Content-Type: text/html\r\n"
-             "Content-Length: %zu\r\n"
-             "\r\n"
-             "%s",
-             strlen(response),
-             response);
+    size_t len = strlen(response);
     
     dump_request(req);
-    iostream_write(req->_conn->stream, buffer, strlen(buffer), write_finished);
+    
+    resp->status = STATUS_OK;
+    resp->content_length = len;
+    resp->connection = CONN_CLOSE;
+    response_set_header(resp, "Content-Type", "text/html");
+
+    response_write(resp, response, len, bar_handler);
     return 0;
 }
 

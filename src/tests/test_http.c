@@ -130,7 +130,7 @@ void test_parse_multiple_times() {
     printf("First Time: Request size: %zu, consumed size: %zu, return status: %d\n",
            req_size, consumed_size, rc);
     dump_request(req);
-    assert(rc == STATUS_CONTINUE);
+    assert(rc == STATUS_INCOMPLETE);
     assert(consumed_size == part1_size);
     assert(request_destroy(req) == 0);
 }
