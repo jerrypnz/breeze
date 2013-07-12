@@ -29,10 +29,12 @@ static void connection_handler(ioloop_t *loop, int listen_fd, unsigned int event
     }
 
     ioloop_add_handler(loop, conn_fd, EPOLLIN, echo_handler, NULL);
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
     ioloop_add_callback(loop, send_welcome_message, (void*)conn_fd);
 }
 
 static void send_welcome_message(ioloop_t *loop, void* args) {
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
     int fd = (int)args;
     char msg[] = "Welcome to echo server powered by libioloop!\n";
     write(fd, msg, sizeof(msg));
