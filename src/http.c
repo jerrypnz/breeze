@@ -665,8 +665,7 @@ static int write_headers(response_t *response) {
 }
 
 int response_write(response_t *response,
-                   const char *data,
-                   const size_t data_len,
+                   char *data, size_t data_len,
                    handler_func next_handler) {
     if (!response->_header_sent) {
         if (write_headers(response) < 0) {

@@ -53,8 +53,8 @@ const char*    response_get_header(response_t *response, const char *header_name
 int            response_set_header(response_t *response, char *name, char *value);
 char*          response_alloc(response_t *response, size_t n);
 int            response_write(response_t *response,
-                              const char *data,
-                              const size_t data_len,
+                              char *data,
+                              size_t data_len,
                               handler_func next_handler);
 
 connection_t*  connection_accept(server_t *server, int listen_fd); 
