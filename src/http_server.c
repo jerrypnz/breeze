@@ -88,12 +88,19 @@ static int _server_init(server_t *server) {
              (struct sockaddr *)&addr,
              sizeof(struct sockaddr_in)) == -1) {
         perror("Error binding address");
+        close(listen_fd);
         return -1;
     }
 
     // ------------ Start listening ------------------------------
     if (listen(listen_fd, MAX_BACKLOG) == -1) {
         perror("Error listening");
+        close(listen_fd);
+        return -1;
+    }
+    if (set_nonblocking(listen_fd) < 0) {
+        perror("Error configuring non-blocking");
+        close(listen_fd);
         return -1;
     }
     server->listen_fd = listen_fd;
@@ -116,13 +123,10 @@ static void _server_connection_handler(ioloop_t *loop,
     connection_t *conn;
     server_t     *server = (server_t*) args;
 
-    conn = connection_accept(server, listen_fd);
-    if (conn == NULL) {
-        fprintf(stderr, "Error creating connection\n");
-        return;
+    while ((conn = connection_accept(server, listen_fd)) != NULL) {
+        connection_run(conn);        
     }
-    
-    connection_run(conn);
+
 }
 
 

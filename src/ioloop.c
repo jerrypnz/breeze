@@ -219,3 +219,13 @@ int ioloop_add_callback(ioloop_t *loop, callback_handler handler, void *args) {
     return 0;
 }
 
+int set_nonblocking(int sockfd) {
+    int opts;
+    opts = fcntl(sockfd, F_GETFL);
+    if (opts < 0) 
+        return -1;
+    opts |= O_NONBLOCK;
+    if (fcntl(sockfd, F_SETFL, opts) < 0)
+        return -1;
+    return 0;
+}

@@ -224,7 +224,6 @@ typedef enum _connection_state {
 struct _connection {
     server_t           *server;
     iostream_t         *stream;
-    struct sockaddr_in remote_addr;
     char               remote_ip[20];
     unsigned short     remote_port;
     conn_stat_e        state;

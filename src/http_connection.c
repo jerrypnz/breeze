@@ -12,7 +12,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-static int _set_nonblocking(int sockfd);
 static void _connection_close_handler(iostream_t *stream);
 static void _on_http_header_data(iostream_t *stream, void *data, size_t len);
 
@@ -23,25 +22,27 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     int          conn_fd;
     request_t    req;
     response_t   resp;
-
-    conn = (connection_t*) calloc(1, sizeof(connection_t));
-    if (conn == NULL) {
-        fprintf(stderr, "Error allocating memory for connection\n");
-        return NULL;
-    }
-    bzero(conn, sizeof(connection_t));
+    struct sockaddr_in remote_addr;
 
         // -------- Accepting connection ----------------------------
     printf("Accepting new connection...\n");
     addr_len = sizeof(struct sockaddr_in);
-    conn_fd = accept(listen_fd, (struct sockaddr*) &conn->remote_addr, &addr_len);
+    conn_fd = accept(listen_fd, (struct sockaddr*) &remote_addr, &addr_len);
     printf("Connection fd: %d...\n", conn_fd);
     if (conn_fd == -1) {
-        perror("Error accepting new connection");
-        goto error;
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+            perror("Error accepting new connection");
+        return NULL;
     }
 
-    if (_set_nonblocking(conn_fd) < 0) {
+    conn = (connection_t*) calloc(1, sizeof(connection_t));
+    if (conn == NULL) {
+        fprintf(stderr, "Error allocating memory for connection\n");
+        goto error;
+    }
+    bzero(conn, sizeof(connection_t));
+
+    if (set_nonblocking(conn_fd) < 0) {
         perror("Error configuring Non-blocking");
         goto error;
     }
@@ -56,8 +57,8 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
 
     conn->server = server;
     conn->stream = stream;
-    inet_ntop(AF_INET, &conn->remote_addr.sin_addr, conn->remote_ip, 20);
-    conn->remote_port = conn->remote_addr.sin_port;
+    inet_ntop(AF_INET, &remote_addr.sin_addr, conn->remote_ip, 20);
+    conn->remote_port = remote_addr.sin_port;
     conn->state = CONN_ACTIVE;
     conn->request  = request_create(conn);
     conn->response = response_create(conn);
@@ -65,7 +66,9 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     return conn;
 
     error:
-    free(conn);
+    close(conn_fd);
+    if (conn != NULL)
+        free(conn);
     return NULL;
 }
 
@@ -112,17 +115,6 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
     resp->version = req->version;
 
     conn->server->handler(req, resp, ctx);
-}
-
-static int _set_nonblocking(int sockfd) {
-    int opts;
-    opts = fcntl(sockfd, F_GETFL);
-    if (opts < 0) 
-        return -1;
-    opts |= O_NONBLOCK;
-    if (fcntl(sockfd, F_SETFL, opts) < 0)
-        return -1;
-    return 0;
 }
 
 static void _connection_close_handler(iostream_t *stream) {

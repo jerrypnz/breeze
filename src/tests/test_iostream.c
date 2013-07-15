@@ -18,7 +18,6 @@ static void read_bytes(iostream_t *stream, void* data, size_t len);
 static void read_headers(iostream_t *stream, void *data, size_t len);
 static void write_texts(iostream_t *stream);
 static void dump_data(void *data, size_t len);
-int set_nonblocking(int sockfd);
 
 /**
  * All Modes:
@@ -149,17 +148,6 @@ int main(int argc, char *argv[]) {
 
     ioloop_add_handler(loop, listen_fd, EPOLLIN, connection_handler, NULL);
     ioloop_start(loop);
-    return 0;
-}
-
-int set_nonblocking(int sockfd) {
-    int opts;
-    opts = fcntl(sockfd, F_GETFL);
-    if (opts < 0) 
-        return -1;
-    opts |= O_NONBLOCK;
-    if (fcntl(sockfd, F_SETFL, opts) < 0)
-        return -1;
     return 0;
 }
 
