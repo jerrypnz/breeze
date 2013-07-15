@@ -46,6 +46,7 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     resp->content_length = len;
     resp->connection = CONN_CLOSE;
     response_set_header(resp, "Content-Type", "text/html");
+    response_set_header(resp, "Server", "breeze/0.1.0");
 
     response_write(resp, response, len, bar_handler);
     return 0;
