@@ -196,6 +196,8 @@ struct _response {
     int                  _header_sent;
     connection_t         *_conn;
     size_t               *_size_written;
+    // This response is done?
+    int                  _done;
 
     // Next handler to call after current write finishes
     handler_func         _next_handler;
