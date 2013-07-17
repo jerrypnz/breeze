@@ -197,7 +197,10 @@ int iostream_read_until(iostream_t *stream, char *delimiter, read_handler callba
 
 int iostream_write(iostream_t *stream, void *data, size_t len, write_handler callback) {
     ssize_t     n;
-    check_writing(stream);
+    // Allow appending data to existing writing action
+    if (is_writing(stream) && callback != stream->write_callback) {
+        return -1;
+    }
 
     if (len == 0) {
         return -1;
