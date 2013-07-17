@@ -36,7 +36,6 @@ static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
 static void strlowercase(const char *src, char *dst, size_t n);
 static void set_common_headers(response_t *response);
-static int write_headers(response_t *response);
 static void on_write_finished(iostream_t *stream);
 
 inline static const char* str_http_ver(http_version_e ver) {
@@ -628,10 +627,15 @@ static void set_common_headers(response_t *response) {
     }
 }
 
-static int write_headers(response_t *response) {
+int response_send_headers(response_t *response) {
     char           buffer[RESPONSE_BUFFER_SIZE];
     int            i, n, buf_len = 0;
     http_header_t  *header;
+
+    if (response->_header_sent) {
+        fprintf(stderr, "headers already sent\n");
+        return -1;
+    }
     
     set_common_headers(response);
     // Write status line
@@ -661,6 +665,7 @@ static int write_headers(response_t *response) {
     if (iostream_write(response->_conn->stream, buffer, buf_len, NULL) < 0) {
         return -1;
     }
+    response->_header_sent = 1;
     return 0;
 }
 
@@ -668,12 +673,8 @@ int response_write(response_t *response,
                    char *data, size_t data_len,
                    handler_func next_handler) {
     if (!response->_header_sent) {
-        if (write_headers(response) < 0) {
-            fprintf(stderr, "Error writing headers\n");
-            connection_close(response->_conn);
-            return -1;
-        }
-        response->_header_sent = 1;
+        fprintf(stderr, "headers not sent yet\n");
+        return -1;
     }
     response->_next_handler = next_handler;
     if (iostream_write(response->_conn->stream,
