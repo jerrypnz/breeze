@@ -20,8 +20,6 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     iostream_t   *stream;
     socklen_t    addr_len;
     int          conn_fd;
-    request_t    req;
-    response_t   resp;
     struct sockaddr_in remote_addr;
 
         // -------- Accepting connection ----------------------------
