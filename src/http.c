@@ -662,7 +662,7 @@ int response_send_headers(response_t *response) {
     buffer[buf_len++] = '\r';
     buffer[buf_len++] = '\n';
 
-    if (iostream_write(response->_conn->stream, buffer, buf_len, NULL) < 0) {
+    if (iostream_write(response->_conn->stream, buffer, buf_len, on_write_finished) < 0) {
         return -1;
     }
     response->_header_sent = 1;
