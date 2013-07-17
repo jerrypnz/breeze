@@ -686,6 +686,14 @@ int response_write(response_t *response,
     return 0;
 }
 
+int response_finish(response_t *response) {
+    if (!response->_header_sent) {
+        response_send_headers(response);
+    }
+    response->finished = 1;
+    return 0;
+}
+
 static void on_write_finished(iostream_t *stream) {
     connection_t  *conn;
     request_t     *req;

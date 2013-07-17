@@ -57,6 +57,7 @@ int            response_write(response_t *response,
                               size_t data_len,
                               handler_func next_handler);
 int            response_send_headers(response_t *response);
+int            response_finish(response_t *response);
 
 connection_t*  connection_accept(server_t *server, int listen_fd); 
 int            connection_close(connection_t *conn);
@@ -196,6 +197,7 @@ struct _response {
     int                  _header_sent;
     connection_t         *_conn;
     size_t               *_size_written;
+    int                  finished;
 
     // Next handler to call after current write finishes
     handler_func         _next_handler;
