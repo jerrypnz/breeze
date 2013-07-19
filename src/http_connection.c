@@ -88,10 +88,8 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
     connection_t   *conn;
     request_t      *req;
     response_t     *resp;
-    handler_ctx_t  *ctx;
     size_t         consumed;
 
-    ctx = NULL;
     conn = (connection_t*) stream->user_data;
     req = conn->request;
     resp = conn->response;
@@ -111,8 +109,24 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
 
     // TODO Handle Unknown HTTP version
     resp->version = req->version;
+    connection_run_handler(conn, conn->server->handler);
+}
 
-    conn->server->handler(req, resp, ctx);
+void connection_run_handler(connection_t *conn, handler_func handler) {
+    request_t   *req;
+    response_t  *resp;
+    handler_ctx_t *ctx;
+    int          res;
+
+    req = conn->request;
+    resp = conn->response;
+    ctx = NULL; //TODO Implement context
+
+    res = handler(req, resp, ctx);
+
+    if (res == HANDLER_DONE) {
+        resp->_done = 1;
+    }
 }
 
 static void _connection_close_handler(iostream_t *stream) {

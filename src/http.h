@@ -32,13 +32,18 @@ typedef struct _ctx_node        ctx_node_t;
 typedef struct _server server_t;
 typedef struct _connection connection_t;
 
+enum _handler_result {
+    HANDLER_DONE,
+    HANDLER_UNFISHED,
+};
+
 /*
  * HTTP handler function
  */
 typedef int (*handler_func)(request_t *request, response_t *response, handler_ctx_t *ctx);
 
 request_t*   request_create(connection_t *conn);
-void         request_reset(request_t *req);
+int          request_reset(request_t *req);
 int          request_destroy(request_t *request);
 const char*  request_get_header(request_t *request, const char *header_name);
 int          request_parse_headers(request_t *request,
@@ -47,7 +52,7 @@ int          request_parse_headers(request_t *request,
                                    size_t *consumed);
 
 response_t*    response_create(connection_t *conn);
-void           response_reset(response_t *resp);
+int            response_reset(response_t *resp);
 int            response_destroy(response_t *response);
 const char*    response_get_header(response_t *response, const char *header_name);
 int            response_set_header(response_t *response, char *name, char *value);
@@ -63,6 +68,7 @@ int            connection_close(connection_t *conn);
 int            connection_destroy(connection_t *conn);
 int            connection_run(connection_t *conn);
 int            connection_finish_current_request(connection_t *conn);
+void           connection_run_handler(connection_t *conn, handler_func handler);
 
 server_t*      server_create(unsigned short port, char *confile);
 int            server_destroy(server_t *server);

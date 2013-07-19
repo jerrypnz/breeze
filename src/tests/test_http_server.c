@@ -23,12 +23,6 @@ void dump_request(request_t *req) {
     printf("----------------------------------------------\n");
 }
 
-int bar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
-    printf("finished request\n");
-    iostream_close(req->_conn->stream);
-    return 0;
-}
-
 int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     char *response =
         "<html>"
@@ -44,12 +38,12 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     
     resp->status = STATUS_OK;
     resp->content_length = len;
-    resp->connection = CONN_CLOSE;
+    resp->connection = CONN_KEEP_ALIVE;
     response_set_header(resp, "Content-Type", "text/html");
     response_set_header(resp, "Server", "breeze/0.1.0");
     response_send_headers(resp);
-    response_write(resp, response, len, bar_handler);
-    return 0;
+    response_write(resp, response, len, NULL);
+    return HANDLER_DONE;
 }
 
 int main(int argc, char** args) {

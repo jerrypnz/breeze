@@ -67,14 +67,21 @@ request_t* request_create(connection_t *conn) {
         free(req);
         return NULL;
     }
+    req->connection = CONN_KEEP_ALIVE;
     req->_conn = conn;
     return req;
 }
 
-void request_reset(request_t *req) {
+int request_reset(request_t *req) {
     connection_t *conn = req->_conn;
+    hdestroy_r(&req->_header_hash);
     bzero(req, sizeof(request_t));
+    if (hcreate_r(MAX_HEADER_SIZE, &req->_header_hash) == 0) {
+        perror("Error creating header hash table\n");
+        return -1;
+    }    
     req->_conn = conn;
+    return 0;
 }
 
 int request_destroy(request_t *req) {
@@ -518,13 +525,17 @@ response_t* response_create(connection_t *conn) {
     return resp;
 }
 
-void response_reset(response_t *response) {
+int response_reset(response_t *response) {
     connection_t  *conn = response->_conn;
     hdestroy_r(&response->_header_hash);
     bzero(response, sizeof(response_t));
-
+    if (hcreate_r(MAX_HEADER_SIZE, &response->_header_hash) == 0) {
+        perror("Error creating header hash table\n");
+        return -1;
+    }
     response->_conn = conn;
     response->content_length = -1;
+    return 0;
 }
 
 int response_destroy(response_t *response) {
@@ -688,16 +699,34 @@ int response_write(response_t *response,
 
 static void on_write_finished(iostream_t *stream) {
     connection_t  *conn;
-    request_t     *req;
-    response_t    *resp;
     handler_func  handler;
+    response_t    *resp;
     
     conn = (connection_t*) stream->user_data;
-    req = conn->request;
     resp = conn->response;
     handler = resp->_next_handler;
 
     if (handler != NULL) {
-        handler(req, resp, NULL);
+        connection_run_handler(conn, handler);
+    } else if (resp->_done) {
+        switch (resp->connection) {
+        case CONN_CLOSE:
+            connection_close(conn);
+            break;
+
+        case CONN_KEEP_ALIVE:
+        default:
+            if (request_reset(conn->request) < 0) {
+                connection_close(conn);
+                break;
+            }
+            if (response_reset(conn->response) < 0) {
+                connection_close(conn);
+                break;
+            }
+            // TODO Reset handler context.
+            connection_run(conn);
+            break;
+        }
     }
 }
