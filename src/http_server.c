@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <signal.h>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -53,6 +54,10 @@ int server_start(server_t *server) {
     if (_server_init(server) < 0) {
         fprintf(stderr, "Error initializing server\n");
         return -1;
+    }
+    // Block SIGPIPE
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+        fprintf(stderr, "Error blocking SIGPIPE\n");
     }
     printf("Start running server on %d\n", server->port);
     server->state = SERVER_RUNNING;
