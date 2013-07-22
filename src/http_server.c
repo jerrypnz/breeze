@@ -14,8 +14,8 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 
-#define MAX_CONNECTIONS 1024
-#define MAX_BACKLOG 10
+#define MAX_CONNECTIONS 1024000
+#define MAX_BACKLOG 128
 
 
 static int _server_init(server_t *server);
