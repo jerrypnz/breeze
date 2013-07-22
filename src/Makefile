@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS ?= -g -rdynamic -Wall -I.
-LDFLAGS ?= -g -rdynamic
+CFLAGS ?= -O2 -g -rdynamic -Wall -I.
+LDFLAGS ?= -O2 -g -rdynamic
 
 objects = ioloop.o buffer.o iostream.o http.o server.o location.o stacktrace.o http_connection.o http_server.o
 testobjs = test_buffer.o test_ioloop.o test_iostream.o test_http.o

@@ -106,8 +106,10 @@ iostream_t *iostream_create(ioloop_t *loop,
     return stream;
 
 error:
-    buffer_destroy(in_buf);
-    buffer_destroy(out_buf);
+    if (in_buf != NULL)
+        buffer_destroy(in_buf);
+    if (out_buf != NULL)
+        buffer_destroy(out_buf);
     free(stream);
     return NULL;
 }
@@ -256,24 +258,20 @@ static void _handle_io_events(ioloop_t *loop,
     iostream_t      *stream = (iostream_t*) args;
 
     if (events & EPOLLIN) {
-        printf("Handling read on socket fd %d\n", stream->fd);
         if (_handle_read(stream)) {
             stream->events &= ~EPOLLIN;
         }
     }
     if (events & EPOLLOUT) {
-        printf("Handling write on socket fd %d\n", stream->fd);
         if (_handle_write(stream)) {
             stream->events &= ~EPOLLOUT;
         }
     }
     if (events & EPOLLERR) {
-        printf("Handling error on socket fd %d\n", stream->fd);
         _handle_error(stream, events);
         return;
     }
     if (events & EPOLLHUP) {
-        printf("Handling hangup on socket fd %d\n", stream->fd);
         iostream_close(stream);
         return;
     }

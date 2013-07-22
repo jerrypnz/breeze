@@ -23,10 +23,8 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     struct sockaddr_in remote_addr;
 
         // -------- Accepting connection ----------------------------
-    printf("Accepting new connection...\n");
     addr_len = sizeof(struct sockaddr_in);
     conn_fd = accept(listen_fd, (struct sockaddr*) &remote_addr, &addr_len);
-    printf("Connection fd: %d...\n", conn_fd);
     if (conn_fd == -1) {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
             perror("Error accepting new connection");
@@ -35,7 +33,6 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
 
     conn = (connection_t*) calloc(1, sizeof(connection_t));
     if (conn == NULL) {
-        fprintf(stderr, "Error allocating memory for connection\n");
         goto error;
     }
     bzero(conn, sizeof(connection_t));
@@ -47,7 +44,6 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     
     stream = iostream_create(server->ioloop, conn_fd, 10240, 40960, conn);
     if (stream == NULL) {
-        fprintf(stderr, "Error creating iostream");
         goto error;
     }
     
@@ -95,14 +91,12 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
     resp = conn->response;
 
     if (req == NULL || resp == NULL) {
-        fprintf(stderr, "Error creating request/response\n");
         connection_close(conn);
         return;
     }
 
     if (request_parse_headers(req, (char*)data, len, &consumed)
         != STATUS_COMPLETE) {
-        fprintf(stderr, "Error parsing request headers\n");
         connection_close(conn);
         return;
     }

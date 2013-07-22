@@ -119,7 +119,6 @@ static void _print_consumer(void *data, size_t len, void *args) {
     int i;
 
     assert_equals((char*) args, SECRET_ARG, 6);
-    printf("Data consumed: ");
     for (i = 0; i < len; i++) {
         putchar(str[i]);
     }

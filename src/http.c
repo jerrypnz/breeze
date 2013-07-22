@@ -58,7 +58,6 @@ request_t* request_create(connection_t *conn) {
     request_t  *req;
     req = (request_t*) calloc(1, sizeof(request_t));
     if (req == NULL) {
-        fprintf(stderr, "Unable to malloc\n");
         return NULL;
     }
     bzero(req, sizeof(request_t));
@@ -125,7 +124,6 @@ int request_parse_headers(request_t *req,
                           const char *data,
                           const size_t data_len,
                           size_t *consumed) {
-    printf("Parsing HTTP request\n");
     http_version_e      ver;
     int                 i, rc;
     char                ch;
@@ -314,19 +312,16 @@ static http_version_e _resolve_http_version(const char* version_str) {
 
 static void _handle_content_len(request_t *req, http_header_t *header) {
     size_t   content_length;
-    printf("Setting content length\n");
 
     content_length = (size_t) atol(header->value);
     req->content_length = content_length;
 }
 
 static void _handle_host(request_t *req, http_header_t *header) {
-    printf("Setting host\n");
     req->host = header->value;
 }
 
 static void _handle_connection(request_t *req, http_header_t *header) {
-    printf("Setting connection option\n");
     if (strcasecmp("keep-alive", header->value) == 0) {
         req->connection = CONN_KEEP_ALIVE;
     }
@@ -464,9 +459,7 @@ static void handle_common_header(request_t *req, int header_index) {
     ent.key = ret->key;
     ent.data = header;
 
-    if (hsearch_r(ent, ENTER, &ret, &req->_header_hash) != 0) {
-        printf("Successfully add known header %s to header hash\n", ent.key);
-    }
+    hsearch_r(ent, ENTER, &ret, &req->_header_hash);
 }
 
 
@@ -507,7 +500,6 @@ response_t* response_create(connection_t *conn) {
 
     resp = (response_t*) calloc(1, sizeof(response_t));
     if (resp == NULL) {
-        fprintf(stderr, "Error allocating memory");
         return NULL;
     }
 
@@ -561,7 +553,6 @@ const char* response_get_header(response_t *response, const char *header_name) {
 char* response_alloc(response_t *response, size_t n) {
     char *res;
     if (response->_buf_idx + n > RESPONSE_BUFFER_SIZE) {
-        fprintf(stderr, "Response buffer insufficient\n");
         return NULL;
     }
     res = response->_buffer + response->_buf_idx;
@@ -577,7 +568,6 @@ int response_set_header(response_t *response, char *header_name, char *header_va
     size_t         n;
 
     if (response->_header_sent) {
-        fprintf(stderr, "Headers already committed");
         return -1;
     }
     strlowercase(header_name, header_lowercase, 64);
@@ -604,7 +594,6 @@ int response_set_header(response_t *response, char *header_name, char *header_va
     }
     ent.data = header;
     if (hsearch_r(ent, ENTER, &ret, &response->_header_hash) == 0) {
-        fprintf(stderr, "Error inputing header to header hash: %s", header_name);
         return -1;
     }
     return 0;
@@ -644,7 +633,6 @@ int response_send_headers(response_t *response) {
     http_header_t  *header;
 
     if (response->_header_sent) {
-        fprintf(stderr, "headers already sent\n");
         return -1;
     }
     
@@ -684,13 +672,11 @@ int response_write(response_t *response,
                    char *data, size_t data_len,
                    handler_func next_handler) {
     if (!response->_header_sent) {
-        fprintf(stderr, "headers not sent yet\n");
         return -1;
     }
     response->_next_handler = next_handler;
     if (iostream_write(response->_conn->stream,
                        data, data_len, on_write_finished) < 0) {
-        fprintf(stderr, "Error writing body\n");
         connection_close(response->_conn);
         return -1;
     }

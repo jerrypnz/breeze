@@ -19,10 +19,8 @@ static void connection_handler(ioloop_t *loop, int listen_fd, unsigned int event
     struct sockaddr_in  remo_addr;
 
     // -------- Accepting connection ----------------------------
-    printf("Accepting new connection...\n");
     addr_len = sizeof(struct sockaddr_in);
     conn_fd = accept(listen_fd, (struct sockaddr*) &remo_addr, &addr_len);
-    printf("Connection fd: %d...\n", conn_fd);
     if (conn_fd == -1) {
         perror("Error accepting new connection");
         return;
