@@ -13,6 +13,7 @@ void dump_request(request_t *req) {
     printf("Query String: %s\n", req->query_str);
     printf("HTTP Version: %d\n", req->version);
     printf("Header count: %zu\n", req->header_count);
+    printf("Connection: %d\n", req->connection);
     printf("Headers: \n");
     printf("------------\n");
 
@@ -38,7 +39,7 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     
     resp->status = STATUS_OK;
     resp->content_length = len;
-    resp->connection = CONN_KEEP_ALIVE;
+    resp->connection = req->connection;
     response_set_header(resp, "Content-Type", "text/html");
     response_set_header(resp, "Server", "breeze/0.1.0");
     response_send_headers(resp);
