@@ -277,7 +277,7 @@ static void _handle_io_events(ioloop_t *loop,
     }
 
     if (is_closed(stream)) {
-        fprintf(stderr, "Stream closed");
+        fprintf(stderr, "Stream closed\n");
         return;
     }
 
