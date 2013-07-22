@@ -66,7 +66,6 @@ request_t* request_create(connection_t *conn) {
         free(req);
         return NULL;
     }
-    req->connection = CONN_KEEP_ALIVE;
     req->_conn = conn;
     return req;
 }
@@ -324,6 +323,8 @@ static void _handle_host(request_t *req, http_header_t *header) {
 static void _handle_connection(request_t *req, http_header_t *header) {
     if (strcasecmp("keep-alive", header->value) == 0) {
         req->connection = CONN_KEEP_ALIVE;
+    } else {
+        req->connection = CONN_CLOSE;
     }
 }
 
@@ -513,7 +514,7 @@ response_t* response_create(connection_t *conn) {
     resp->_conn = conn;
     // Content Length of -1 means we do not handle content length
     resp->content_length = -1;
-
+    resp->connection = CONN_KEEP_ALIVE;
     return resp;
 }
 
@@ -527,6 +528,7 @@ int response_reset(response_t *response) {
     }
     response->_conn = conn;
     response->content_length = -1;
+    response->connection = CONN_KEEP_ALIVE;
     return 0;
 }
 
@@ -613,6 +615,16 @@ static void set_common_headers(response_t *response) {
 
         response->_buf_idx += (n + 1);
         response_set_header(response, "Content-Length", keybuf);
+    } else {
+        // No Content-Length header set, set connection header
+        // to close
+        // TODO Support chunked transfer encoding
+        response->connection = CONN_CLOSE;
+    }
+
+    // For HTTP version prior to HTTP/1.1, keep-alive is not supported
+    if (response->version < HTTP_VERSION_1_1) {
+        response->connection = CONN_CLOSE;
     }
 
     switch(response->connection) {

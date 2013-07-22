@@ -13,7 +13,7 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 
-#define MAX_CALLBACKS 100
+#define MAX_CALLBACKS 10000
 
 struct _callback {
     callback_handler    callback;
@@ -142,7 +142,7 @@ io_handler  ioloop_remove_handler(ioloop_t *loop, int fd) {
 }
 
 
-#define MAX_EVENTS    20
+#define MAX_EVENTS    1024
 #define EPOLL_DEFAULT_TIMEOUT 100
 
 int ioloop_start(ioloop_t *loop) {

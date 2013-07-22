@@ -16,7 +16,7 @@ static void _connection_close_handler(iostream_t *stream);
 static void _on_http_header_data(iostream_t *stream, void *data, size_t len);
 
 connection_t* connection_accept(server_t *server, int listen_fd) {
-    connection_t  *conn;
+    connection_t *conn;
     iostream_t   *stream;
     socklen_t    addr_len;
     int          conn_fd;
@@ -124,5 +124,11 @@ void connection_run_handler(connection_t *conn, handler_func handler) {
 }
 
 static void _connection_close_handler(iostream_t *stream) {
-    //TODO handle connection close
+    connection_t  *conn;
+    conn = (connection_t*) stream->user_data;
+    
+    request_destroy(conn->request);
+    response_destroy(conn->response);
+    //TODO context destroy
+    connection_destroy(conn);
 }
