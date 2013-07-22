@@ -184,11 +184,9 @@ int ioloop_start(ioloop_t *loop) {
         // Handle events
         for (i = 0; i < nfds; i++) {
             fd = events[i].data.fd;
-            printf("Event %d triggered on fd %d\n", events[i].events, fd);
             handler = loop->handlers[fd].callback;
             args = loop->handlers[fd].args;
             if (handler == NULL) {
-                printf("Event triggered with a NULL handler on fd %d\n", fd);
                 continue;
             }
             handler(loop, fd, events[i].events, args);
