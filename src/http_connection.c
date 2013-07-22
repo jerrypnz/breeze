@@ -16,7 +16,7 @@ static void _connection_close_handler(iostream_t *stream);
 static void _on_http_header_data(iostream_t *stream, void *data, size_t len);
 
 connection_t* connection_accept(server_t *server, int listen_fd) {
-    connection_t  *conn;
+    connection_t *conn;
     iostream_t   *stream;
     socklen_t    addr_len;
     int          conn_fd;

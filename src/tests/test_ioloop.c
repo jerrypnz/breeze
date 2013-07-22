@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 
+#include <assert.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -35,7 +36,7 @@ static void send_welcome_message(ioloop_t *loop, void* args) {
 #pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
     int fd = (int)args;
     char msg[] = "Welcome to echo server powered by libioloop!\n";
-    write(fd, msg, sizeof(msg));
+    assert(write(fd, msg, sizeof(msg) > 0));
 }
 
 
@@ -55,7 +56,7 @@ static void echo_handler(ioloop_t *loop, int fd, unsigned int events, void *args
         }
         buffer[nread] = '\0';
         printf("Read from client: %s", buffer);
-        write(fd, buffer, nread);
+        assert(write(fd, buffer, nread) > 0);
     }
 }
 

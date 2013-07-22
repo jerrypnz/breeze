@@ -59,7 +59,7 @@ iostream_t *iostream_create(ioloop_t *loop,
                             size_t write_buf_capacity,
                             void *user_data) {
     iostream_t  *stream;
-    buffer_t    *in_buf, *out_buf;
+    buffer_t    *in_buf = NULL, *out_buf = NULL;
 
     stream = (iostream_t*) calloc(1, sizeof(iostream_t));
     if (stream == NULL) {

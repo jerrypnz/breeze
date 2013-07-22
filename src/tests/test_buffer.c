@@ -87,7 +87,7 @@ void test_write_from_fd() {
 
     data_len = strlen(data);
     fd = open("/tmp/foobar2.txt", O_RDWR | O_CREAT, 0755);
-    write(fd, data, data_len);
+    assert(write(fd, data, data_len) > 0);
     lseek(fd, 0, SEEK_SET);
     assert(buffer_write_from_fd(buf, fd, 100) == data_len);
     assert(buffer_read_to(buf, data_len, result, 100) == data_len);
@@ -103,7 +103,7 @@ void test_write_from_fd_overflow() {
 
     data_len = strlen(data);
     fd = open("/tmp/foobar3.txt", O_RDWR | O_CREAT, 0755);
-    write(fd, data, data_len);
+    assert(write(fd, data, data_len) > 0);
     lseek(fd, 0, SEEK_SET);
     assert(buffer_write_from_fd(buf, fd, 100) == 10);
     assert(buffer_is_full(buf));
