@@ -117,7 +117,7 @@ int ioloop_update_handler(ioloop_t *loop, int fd, unsigned int events) {
     struct epoll_event     ev;
 
     ev.data.fd = fd;
-    ev.events = events | EPOLLET;
+    ev.events = events;
     if (epoll_ctl(loop->epoll_fd, EPOLL_CTL_MOD, fd, &ev) == -1) {
         perror("Error modifying epoll events");
         return -1;
