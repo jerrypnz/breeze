@@ -1,13 +1,17 @@
 #include "iostream.h"
 #include "ioloop.h"
 #include "buffer.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <assert.h>
 #include <sys/epoll.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
-#include <errno.h>
 
 enum READ_OP_TYPES {
     READ_BYTES = 1,
@@ -17,6 +21,12 @@ enum READ_OP_TYPES {
 enum STREAM_STATE {
     NORMAL = 1,
     CLOSED = 2
+};
+
+enum WRITE_STATE {
+    NOT_WRITING,
+    WRITE_BUFFER,
+    SEND_FILE
 };
 
 #define is_reading(stream) ((stream)->read_callback != NULL)
@@ -37,6 +47,7 @@ static void _handle_io_events(ioloop_t *loop, int fd, unsigned int events, void 
 static void _handle_error(iostream_t *stream, unsigned int events);
 static int  _handle_read(iostream_t *stream);
 static int  _handle_write(iostream_t *stream);
+static int  _handle_sendfile(iostream_t *stream);
 static int _add_event(iostream_t *stream, unsigned int events);
 
 static ssize_t _read_from_socket(iostream_t *stream);
@@ -209,6 +220,7 @@ int iostream_write(iostream_t *stream, void *data, size_t len, write_handler cal
     }
 
     stream->write_callback = callback;
+    stream->write_state = WRITE_BUFFER;
     n = _write_to_socket_direct(stream, data, len);
     if (n < 0) {
         return -1;
@@ -229,8 +241,39 @@ int iostream_write(iostream_t *stream, void *data, size_t len, write_handler cal
     return 0;
 }
 
-int iostream_sendfile(iostream_t *stream, int in_fd, size_t len, write_handler callback) {
-    // TODO Implement sendfile
+int iostream_sendfile(iostream_t *stream, int in_fd,
+                      size_t offset, size_t len,
+                      write_handler callback) {
+    struct stat st;
+    
+    check_writing(stream);
+    if (len == 0) {
+        return -1;
+    }
+    if (fstat(in_fd, &st) < 0) {
+        perror("The file to send is not valid");
+        return -2;
+    }
+
+    switch (st.st_mode & S_IFMT) {
+    case S_IFREG:
+    case S_IFLNK:
+        break;
+
+    default:
+        fprintf(stderr, "Unsupported file type: %d", st.st_mode);
+        return -3;
+    }
+    stream->sendfile_fd = in_fd;
+    stream->sendfile_len = len;
+    stream->sendfile_offset = offset;
+    stream->write_state = SEND_FILE;
+    stream->write_callback = callback;
+
+    if(_handle_sendfile(stream)) {
+        return 0;
+    }
+    _add_event(stream, EPOLLOUT);
     return 0;
 }
 
@@ -281,8 +324,7 @@ static void _handle_io_events(ioloop_t *loop,
         return;
     }
 
-    printf("Updating epoll events for socket fd %d, event %d\n",
-           stream->fd, stream->events);
+    //printf("Updating epoll events for socket fd %d, event %d\n", stream->fd, stream->events);
     ioloop_update_handler(stream->ioloop, stream->fd, stream->events);    
 }
 
@@ -295,7 +337,48 @@ static int _handle_read(iostream_t *stream) {
 }
 
 static int _handle_write(iostream_t *stream) {
-    return _write_to_socket(stream);
+    switch (stream->write_state) {
+    case WRITE_BUFFER:
+        return _write_to_socket(stream);
+
+    case SEND_FILE:
+        return _handle_sendfile(stream);
+
+    default:
+        return -1;
+    }
+}
+
+static int _handle_sendfile(iostream_t *stream) {
+    ssize_t  sz;
+
+    sz = sendfile(stream->fd, stream->sendfile_fd,
+                  &stream->sendfile_offset, stream->sendfile_len);
+
+    if (sz < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return 0;
+        } else {
+            iostream_close(stream);
+            return -1;
+        }
+    } else if (sz == 0 && stream->sendfile_len > 0) {
+        // The lengh maybe longer than the actual available size. In
+        // this case finish the write immediately.
+        stream->sendfile_offset = 0;
+        ioloop_add_callback(stream->ioloop, _finish_write_callback, stream);
+        return 1;
+    }
+
+    stream->sendfile_len -= sz;
+
+    if (stream->sendfile_len == 0) {
+        stream->sendfile_offset = 0;
+        ioloop_add_callback(stream->ioloop, _finish_write_callback, stream);
+        return 1;
+    }
+
+    return 0;
 }
 
 static int _add_event(iostream_t *stream, unsigned int event) {
@@ -394,6 +477,7 @@ static void _finish_write_callback(ioloop_t *loop, void *args) {
     write_handler   callback = stream->write_callback;
 
     stream->write_callback = NULL;
+    stream->write_state = NOT_WRITING;
     if (callback != NULL) {
         callback(stream);
     }
@@ -433,7 +517,7 @@ static int _write_to_socket(iostream_t *stream) {
             break;
         }
     }
-    if (stream->write_buf_size <= 0) {
+    if (stream->write_buf_size == 0) {
         ioloop_add_callback(stream->ioloop, _finish_write_callback, stream);
         return 1;
     } else {
