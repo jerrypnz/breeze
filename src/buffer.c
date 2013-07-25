@@ -136,6 +136,12 @@ size_t buffer_get(buffer_t *buf, size_t len, void *target, size_t capacity) {
     return total;
 }
 
+size_t buffer_skip(buffer_t *buf, size_t len) {
+    len = MIN(buf->size, len);
+    buf->size -= len;
+    buf->head = (buf->head + len) % buf->capacity;
+    return len;
+}
 
 size_t buffer_consume(buffer_t *buf, size_t len, consumer_func cb, void *args) {
     size_t      read_len, total = 0;

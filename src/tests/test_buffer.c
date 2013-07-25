@@ -41,7 +41,7 @@ void test_overflow() {
     assert(buffer_destroy(buf) == 0);
 }
 
-void test_multiple_readwrite() {
+void test_multiple_putget() {
     char        data1[] = "123456";
     char        data2[] = "abcd";
     char        data3[] = "mnpqrs";
@@ -65,7 +65,7 @@ void test_multiple_readwrite() {
 }
 
 
-void test_read_to_fd() {
+void test_flush() {
     char        data[] = "1234567890abcdefg!@#$%^&*";
     buffer_t    *buf = create_buffer(30);
     int         fd;
@@ -78,7 +78,29 @@ void test_read_to_fd() {
     assert(buffer_destroy(buf) == 0);
 }
 
-void test_write_from_fd() {
+
+void test_flush_incontinous() {
+    char        garbage[] = "1234567890abcdef";
+    char        data[] = "1234567890abcdefg!@#$%^&*";
+    buffer_t    *buf = create_buffer(30);
+    int         fd;
+    size_t      garbage_len = strlen(garbage);
+
+    // Put some garbage to the buffer and skip them to make the ring
+    // buffer have incontinous space. So we can test writev with
+    // multiple iovec. 
+    assert(buffer_put(buf, garbage, garbage_len) == 0);
+    assert(buffer_skip(buf, garbage_len) == garbage_len);
+    
+    assert(buffer_put(buf, data, strlen(data)) == 0);
+    fd = open("/tmp/foobar2.txt", O_RDWR | O_CREAT, 0755);
+    assert(buffer_flush(buf, fd) == strlen(data));
+    fsync(fd);
+    close(fd);
+    assert(buffer_destroy(buf) == 0);    
+}
+
+void test_fill() {
     char        data[] = "1234567890abcdefg!@#$%^&*";
     char        result[100];
     buffer_t    *buf = create_buffer(512);
@@ -94,7 +116,7 @@ void test_write_from_fd() {
     assert_equals(data, result, data_len);
 }
 
-void test_write_from_fd_overflow() {
+void test_fill_overflow() {
     char        data[] = "1234567890abcdefg!@#$%^&*";
     char        result[100];
     buffer_t    *buf = create_buffer(10);
@@ -172,10 +194,11 @@ void test_locate() {
 int main(int argc, char *argv[]) {
     test_basic_case();
     test_overflow();
-    test_multiple_readwrite();
-    test_read_to_fd();
-    test_write_from_fd();
-    test_write_from_fd_overflow();
+    test_multiple_putget();
+    test_flush();
+    test_flush_incontinous();
+    test_fill();
+    test_fill_overflow();
     test_consume();
     test_locate();
     return 0;
