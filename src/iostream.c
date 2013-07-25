@@ -393,7 +393,7 @@ static int _add_event(iostream_t *stream, unsigned int event) {
 
 static ssize_t _read_from_socket(iostream_t *stream) {
     ssize_t  n;
-    n = buffer_write_from_fd(stream->read_buf, stream->fd, READ_SIZE);
+    n = buffer_fill(stream->read_buf, stream->fd);
     if (n < 0) {
         iostream_close(stream);
         return -1;
@@ -463,7 +463,7 @@ static void _finish_read_callback(ioloop_t *loop, void *args) {
     size_t          n;
 
     // Normal mode, call read callback
-    n = buffer_read_to(stream->read_buf, stream->read_bytes, local_buf, LOCAL_BUFSIZE);
+    n = buffer_get(stream->read_buf, stream->read_bytes, local_buf, LOCAL_BUFSIZE);
     // assert(n == stream->read_bytes);
     callback = stream->read_callback;
     stream->read_callback = NULL;
@@ -494,7 +494,7 @@ static ssize_t _write_to_buffer(iostream_t *stream, void *data, size_t len) {
     if (len > stream->write_buf_cap - stream->write_buf_size) {
         return -1;
     }
-    if (buffer_write(stream->write_buf, data, len) < 0) {
+    if (buffer_put(stream->write_buf, data, len) < 0) {
         return -1;
     }
     stream->write_buf_size += len;
@@ -506,17 +506,13 @@ static ssize_t _write_to_buffer(iostream_t *stream, void *data, size_t len) {
 static int _write_to_socket(iostream_t *stream) {
     ssize_t         n;
 
-    for(;;) {
-        n = buffer_read_to_fd(stream->write_buf, WRITE_CHUNK_SIZE, stream->fd);
-        if (n < 0) {
-            iostream_close(stream);
-            return -1;
-        }
-        stream->write_buf_size -= n;
-        if (n < WRITE_CHUNK_SIZE) {
-            break;
-        }
+    n = buffer_flush(stream->write_buf, stream->fd);
+    if (n < 0) {
+        iostream_close(stream);
+        return -1;
     }
+    stream->write_buf_size -= n;
+
     if (stream->write_buf_size == 0) {
         ioloop_add_callback(stream->ioloop, _finish_write_callback, stream);
         return 1;
