@@ -28,7 +28,7 @@ void test_basic_case() {
     buffer_t    *buf = create_buffer(10);
 
     assert(buffer_write(buf, data, strlen(data)) == 0);
-    assert(buffer_read_to(buf, 10, result, 12) == 10);
+    assert(buffer_read(buf, 10, result, 12) == 10);
     assert_equals(data, result, 10);
     assert(buffer_destroy(buf) == 0);
 }
@@ -51,15 +51,15 @@ void test_multiple_readwrite() {
 
     assert(buffer_write(buf, data1, strlen(data1)) == 0);
     assert(buffer_write(buf, data2, strlen(data2)) == 0);
-    assert(buffer_read_to(buf, 8, result, 12) == 8);
+    assert(buffer_read(buf, 8, result, 12) == 8);
     assert_equals("123456ab", result, 8);
 
     assert(buffer_write(buf, data3, strlen(data3)) == 0);
-    assert(buffer_read_to(buf, 10, result, 12) == 8);
+    assert(buffer_read(buf, 10, result, 12) == 8);
     assert_equals("cdmnpqrs", result, 8);
 
     assert(buffer_write(buf, data4, strlen(data4)) == 0);
-    assert(buffer_read_to(buf, 10, result, 12) == 9);
+    assert(buffer_read(buf, 10, result, 12) == 9);
     assert_equals(data4, result, 9);
     assert(buffer_destroy(buf) == 0);
 }
@@ -67,12 +67,12 @@ void test_multiple_readwrite() {
 
 void test_read_to_fd() {
     char        data[] = "1234567890abcdefg!@#$%^&*";
-    buffer_t    *buf = create_buffer(512);
+    buffer_t    *buf = create_buffer(30);
     int         fd;
 
     assert(buffer_write(buf, data, strlen(data)) == 0);
     fd = open("/tmp/foobar.txt", O_RDWR | O_CREAT, 0755);
-    assert(buffer_read_to_fd(buf, 50, fd) == strlen(data));
+    assert(buffer_flush(buf, fd) == strlen(data));
     fsync(fd);
     close(fd);
     assert(buffer_destroy(buf) == 0);
@@ -89,8 +89,8 @@ void test_write_from_fd() {
     fd = open("/tmp/foobar2.txt", O_RDWR | O_CREAT, 0755);
     assert(write(fd, data, data_len) > 0);
     lseek(fd, 0, SEEK_SET);
-    assert(buffer_write_from_fd(buf, fd, 100) == data_len);
-    assert(buffer_read_to(buf, data_len, result, 100) == data_len);
+    assert(buffer_fill(buf, fd) == data_len);
+    assert(buffer_read(buf, data_len, result, 100) == data_len);
     assert_equals(data, result, data_len);
 }
 
@@ -105,9 +105,9 @@ void test_write_from_fd_overflow() {
     fd = open("/tmp/foobar3.txt", O_RDWR | O_CREAT, 0755);
     assert(write(fd, data, data_len) > 0);
     lseek(fd, 0, SEEK_SET);
-    assert(buffer_write_from_fd(buf, fd, 100) == 10);
+    assert(buffer_fill(buf, fd) == 10);
     assert(buffer_is_full(buf));
-    assert(buffer_read_to(buf, 10, result, 100) == 10);
+    assert(buffer_read(buf, 10, result, 100) == 10);
     assert_equals(data, result, 10);
     assert(buffer_destroy(buf) == 0);
 }

@@ -20,8 +20,7 @@ struct _buffer {
 __inline__ static void _do_write(buffer_t *buf, byte_t *data, size_t len);
 __inline__ static void _do_read_to(buffer_t *buf, byte_t *target, size_t len);
 __inline__ static void _do_consume(buffer_t *buf, size_t len, consumer_func func, void *args);
-__inline__ static ssize_t _do_read_to_fd(buffer_t *buf, int to_fd, size_t len);
-__inline__ static ssize_t _do_write_from_fd(buffer_t *buf, int from_fd, size_t len);
+__inline__ static ssize_t _do_read_to_fd(buffer_t *buf, int fd, size_t len);
 
 
 buffer_t *buffer_create(size_t size) {
@@ -86,7 +85,7 @@ int buffer_write(buffer_t *buf, void *data, size_t len) {
 }
 
 
-ssize_t buffer_write_from_fd(buffer_t *buf, int fd, size_t len) {
+ssize_t buffer_fill(buffer_t *buf, int fd) {
     ssize_t  n, iovcnt;
     struct iovec iov[2];
     
@@ -105,9 +104,8 @@ ssize_t buffer_write_from_fd(buffer_t *buf, int fd, size_t len) {
     if (n < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             return 0;
-        } else {
-            return -1;
         }
+        return -1;
     } else if (n == 0) {
         return -2;
     }
@@ -117,7 +115,7 @@ ssize_t buffer_write_from_fd(buffer_t *buf, int fd, size_t len) {
 }
 
 
-size_t buffer_read_to(buffer_t *buf, size_t len, void *target, size_t capacity) {
+size_t buffer_read(buffer_t *buf, size_t len, void *target, size_t capacity) {
     size_t      read_len, total = 0;
     byte_t      *_target = (byte_t*) target;
 
@@ -159,37 +157,34 @@ size_t buffer_consume(buffer_t *buf, size_t len, consumer_func cb, void *args) {
 }
 
 
-ssize_t buffer_read_to_fd(buffer_t *buf, size_t len, int to_fd) {
-    size_t      read_len;
-    ssize_t     total, n;
+ssize_t buffer_flush(buffer_t *buf, int fd) {
+    ssize_t  n;
+    int      iovcnt;
+    struct   iovec iov[2];
 
-    len = MIN(buf->size, len);
-    total = 0;
-    read_len = MIN(len, buf->capacity - buf->head);
-    n = _do_read_to_fd(buf, to_fd, read_len);
+    iov[0].iov_base = buf->data + buf->head;
+    if (buf->tail > buf->head) {
+        iov[0].iov_len = buf->tail - buf->head;
+        iovcnt = 1;
+    } else {
+        iov[0].iov_len = buf->capacity - buf->head;
+        iov[1].iov_base = buf->data;
+        iov[1].iov_len = buf->tail;
+        iovcnt = 2;
+    }
 
+    n = writev(fd, iov, iovcnt);
     if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return 0;
+        }
         return -1;
     }
 
-    // If the first part is not written completely, we
-    // just return and don't try the next part.
-    if (n < read_len) {
-        return n;
-    }
+    buf->size -= n;
+    buf->head = (buf->head + n) % buf->capacity;
 
-    total += read_len;
-    read_len = len - read_len;
-
-    if (read_len > 0) {
-        n = _do_read_to_fd(buf, to_fd, read_len);
-        if (n < 0) {
-            return -1;
-        }
-        total += n;
-    }
-
-    return total;
+    return n;
 }
 
 
@@ -268,10 +263,10 @@ __inline__ static void _do_consume(buffer_t *buf, size_t len, consumer_func func
     func(data, len, args);
 }
 
-__inline__ static ssize_t _do_read_to_fd(buffer_t *buf, int to_fd, size_t len) {
+__inline__ static ssize_t _do_read_to_fd(buffer_t *buf, int fd, size_t len) {
     ssize_t     n, total = 0;
     while (len > 0) {
-        n = write(to_fd, buf->data + buf->head, len);
+        n = write(fd, buf->data + buf->head, len);
         if (n < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break;
@@ -289,24 +284,3 @@ __inline__ static ssize_t _do_read_to_fd(buffer_t *buf, int to_fd, size_t len) {
     return total;
 }
 
-
-__inline__ static ssize_t _do_write_from_fd(buffer_t *buf, int from_fd, size_t len) {
-    ssize_t     n, total = 0;
-    while(total < len) {
-        n = read(from_fd, buf->data + buf->tail, len);
-        if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                break;
-            } else {
-                return -1;
-            }
-        }
-        if (n == 0) {
-            return -2;
-        }
-        total += n;
-        buf->size += n;
-        buf->tail = (buf->tail + n) % buf->capacity;
-    }
-    return total;
-}

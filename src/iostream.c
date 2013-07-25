@@ -393,7 +393,7 @@ static int _add_event(iostream_t *stream, unsigned int event) {
 
 static ssize_t _read_from_socket(iostream_t *stream) {
     ssize_t  n;
-    n = buffer_write_from_fd(stream->read_buf, stream->fd, READ_SIZE);
+    n = buffer_fill(stream->read_buf, stream->fd);
     if (n < 0) {
         iostream_close(stream);
         return -1;
@@ -463,7 +463,7 @@ static void _finish_read_callback(ioloop_t *loop, void *args) {
     size_t          n;
 
     // Normal mode, call read callback
-    n = buffer_read_to(stream->read_buf, stream->read_bytes, local_buf, LOCAL_BUFSIZE);
+    n = buffer_read(stream->read_buf, stream->read_bytes, local_buf, LOCAL_BUFSIZE);
     // assert(n == stream->read_bytes);
     callback = stream->read_callback;
     stream->read_callback = NULL;
@@ -507,7 +507,7 @@ static int _write_to_socket(iostream_t *stream) {
     ssize_t         n;
 
     for(;;) {
-        n = buffer_read_to_fd(stream->write_buf, WRITE_CHUNK_SIZE, stream->fd);
+        n = buffer_flush(stream->write_buf, stream->fd);
         if (n < 0) {
             iostream_close(stream);
             return -1;
