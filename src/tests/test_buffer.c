@@ -27,8 +27,8 @@ void test_basic_case() {
     char        result[12];
     buffer_t    *buf = create_buffer(10);
 
-    assert(buffer_write(buf, data, strlen(data)) == 0);
-    assert(buffer_read(buf, 10, result, 12) == 10);
+    assert(buffer_put(buf, data, strlen(data)) == 0);
+    assert(buffer_get(buf, 10, result, 12) == 10);
     assert_equals(data, result, 10);
     assert(buffer_destroy(buf) == 0);
 }
@@ -37,7 +37,7 @@ void test_overflow() {
     char        data[] = "1234567890";
     buffer_t    *buf = create_buffer(5);
 
-    assert(buffer_write(buf, data, strlen(data)) < 0);
+    assert(buffer_put(buf, data, strlen(data)) < 0);
     assert(buffer_destroy(buf) == 0);
 }
 
@@ -49,17 +49,17 @@ void test_multiple_readwrite() {
     char        result[12];
     buffer_t    *buf = create_buffer(10);
 
-    assert(buffer_write(buf, data1, strlen(data1)) == 0);
-    assert(buffer_write(buf, data2, strlen(data2)) == 0);
-    assert(buffer_read(buf, 8, result, 12) == 8);
+    assert(buffer_put(buf, data1, strlen(data1)) == 0);
+    assert(buffer_put(buf, data2, strlen(data2)) == 0);
+    assert(buffer_get(buf, 8, result, 12) == 8);
     assert_equals("123456ab", result, 8);
 
-    assert(buffer_write(buf, data3, strlen(data3)) == 0);
-    assert(buffer_read(buf, 10, result, 12) == 8);
+    assert(buffer_put(buf, data3, strlen(data3)) == 0);
+    assert(buffer_get(buf, 10, result, 12) == 8);
     assert_equals("cdmnpqrs", result, 8);
 
-    assert(buffer_write(buf, data4, strlen(data4)) == 0);
-    assert(buffer_read(buf, 10, result, 12) == 9);
+    assert(buffer_put(buf, data4, strlen(data4)) == 0);
+    assert(buffer_get(buf, 10, result, 12) == 9);
     assert_equals(data4, result, 9);
     assert(buffer_destroy(buf) == 0);
 }
@@ -70,7 +70,7 @@ void test_read_to_fd() {
     buffer_t    *buf = create_buffer(30);
     int         fd;
 
-    assert(buffer_write(buf, data, strlen(data)) == 0);
+    assert(buffer_put(buf, data, strlen(data)) == 0);
     fd = open("/tmp/foobar.txt", O_RDWR | O_CREAT, 0755);
     assert(buffer_flush(buf, fd) == strlen(data));
     fsync(fd);
@@ -90,7 +90,7 @@ void test_write_from_fd() {
     assert(write(fd, data, data_len) > 0);
     lseek(fd, 0, SEEK_SET);
     assert(buffer_fill(buf, fd) == data_len);
-    assert(buffer_read(buf, data_len, result, 100) == data_len);
+    assert(buffer_get(buf, data_len, result, 100) == data_len);
     assert_equals(data, result, data_len);
 }
 
@@ -107,7 +107,7 @@ void test_write_from_fd_overflow() {
     lseek(fd, 0, SEEK_SET);
     assert(buffer_fill(buf, fd) == 10);
     assert(buffer_is_full(buf));
-    assert(buffer_read(buf, 10, result, 100) == 10);
+    assert(buffer_get(buf, 10, result, 100) == 10);
     assert_equals(data, result, 10);
     assert(buffer_destroy(buf) == 0);
 }
@@ -131,13 +131,13 @@ void test_consume() {
     char        data1[] = "abcdefghij";
     buffer_t    *buf = create_buffer(10);
 
-    assert(buffer_write(buf, data, strlen(data)) == 0);
+    assert(buffer_put(buf, data, strlen(data)) == 0);
     assert(buffer_consume(buf, 10, _print_consumer, SECRET_ARG) == strlen(data));
 
-    assert(buffer_write(buf, data1, strlen(data1)) == 0);
+    assert(buffer_put(buf, data1, strlen(data1)) == 0);
     assert(buffer_consume(buf, 10, _print_consumer, SECRET_ARG) == strlen(data1));
 
-    assert(buffer_write(buf, data, strlen(data)) == 0);
+    assert(buffer_put(buf, data, strlen(data)) == 0);
     assert(buffer_consume(buf, 2, _print_consumer, SECRET_ARG) == 2);
     assert(buffer_consume(buf, 3, _print_consumer, SECRET_ARG) == 3);
     assert(buffer_destroy(buf) == 0);
@@ -148,7 +148,7 @@ void test_locate() {
     char        data1[] = "0123456789";
     buffer_t    *buf = create_buffer(10);
 
-    assert(buffer_write(buf, data, strlen(data)) == 0);
+    assert(buffer_put(buf, data, strlen(data)) == 0);
     assert(buffer_locate(buf, "cd") == 2);
     assert(buffer_locate(buf, "c") == 2);
     assert(buffer_locate(buf, "d") == 3);
@@ -158,7 +158,7 @@ void test_locate() {
 
     assert(buffer_consume(buf, 10, _print_consumer, SECRET_ARG) == strlen(data));
 
-    assert(buffer_write(buf, data1, strlen(data1)) == 0);
+    assert(buffer_put(buf, data1, strlen(data1)) == 0);
     assert(buffer_locate(buf, "012") == 0);
     assert(buffer_locate(buf, "0") == 0);
     assert(buffer_locate(buf, "9") == 9);
