@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
+char* msg = "hello";
 
 void dump_request(request_t *req) {
     int i;
@@ -36,6 +39,9 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     size_t len = strlen(response);
     
     dump_request(req);
+
+    // Make sure the conf pointer points to the string we specified.
+    assert(ctx->conf == (void*)msg);
     
     resp->status = STATUS_OK;
     resp->content_length = len;
@@ -57,6 +63,7 @@ int main(int argc, char** args) {
     }
 
     server->handler = foobar_handler;
+    server->handler_conf = msg;
     server_start(server);
     return 0;
 }

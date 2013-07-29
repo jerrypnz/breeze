@@ -24,7 +24,7 @@ typedef struct _response        response_t;
 typedef struct _http_header     http_header_t;
 typedef struct _http_status     http_status_t;
 typedef struct _handler_ctx     handler_ctx_t;
-typedef struct _ctx_node        ctx_node_t;
+typedef struct _state_node        ctx_node_t;
 
 /*
  * HTTP server/connection
@@ -62,6 +62,9 @@ int            response_write(response_t *response,
                               size_t data_len,
                               handler_func next_handler);
 int            response_send_headers(response_t *response);
+
+handler_ctx_t* context_create();
+int            context_destroy(handler_ctx_t *ctx);
 
 connection_t*  connection_accept(server_t *server, int listen_fd); 
 int            connection_close(connection_t *conn);
@@ -136,18 +139,19 @@ struct _http_header {
     char    *value;
 };
 
-struct _ctx_node {
+struct _state_node {
     union {
         void    *as_ptr;
         size_t  as_size;
         int     as_int;
         char    *as_str;
     } data;
-    struct _ctx_node *next;
+    struct _state_node *next;
 };
 
 struct _handler_ctx {
-    ctx_node_t   *head;
+    ctx_node_t   *state_head;
+    void         *conf;
 };
 
 struct _request {
@@ -218,6 +222,7 @@ typedef enum _server_state {
 struct _server {
     unsigned short  port;
     handler_func    handler;
+    void            *handler_conf;
 
     server_state    state;
     int             listen_fd;
@@ -239,6 +244,7 @@ struct _connection {
 
     request_t          *request;
     response_t         *response;
+    handler_ctx_t      *context;
 };
 
 

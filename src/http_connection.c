@@ -56,6 +56,7 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     conn->state = CONN_ACTIVE;
     conn->request  = request_create(conn);
     conn->response = response_create(conn);
+    conn->context = context_create();
     
     return conn;
 
@@ -71,6 +72,9 @@ int connection_close(connection_t *conn) {
 }
 
 int connection_destroy(connection_t *conn) {
+    request_destroy(conn->request);
+    response_destroy(conn->response);
+    context_destroy(conn->context);
     free(conn);
     return 0;
 }
@@ -103,6 +107,8 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
 
     // TODO Handle Unknown HTTP version
     resp->version = req->version;
+    // Reset handler configuration
+    conn->context->conf = conn->server->handler_conf;
     connection_run_handler(conn, conn->server->handler);
 }
 
@@ -114,7 +120,7 @@ void connection_run_handler(connection_t *conn, handler_func handler) {
 
     req = conn->request;
     resp = conn->response;
-    ctx = NULL; //TODO Implement context
+    ctx = conn->context;
 
     res = handler(req, resp, ctx);
 

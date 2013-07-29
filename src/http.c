@@ -728,3 +728,13 @@ static void on_write_finished(iostream_t *stream) {
         }
     }
 }
+
+handler_ctx_t* context_create() {
+    handler_ctx_t *ctx = (handler_ctx_t*) calloc(1, sizeof(handler_ctx_t));
+    return ctx;
+}
+
+int context_destroy(handler_ctx_t *ctx) {
+    free(ctx);
+    return 0;
+}
