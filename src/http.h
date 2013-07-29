@@ -15,6 +15,7 @@
 #define REQUEST_BUFFER_SIZE     2048
 #define RESPONSE_BUFFER_SIZE    2048
 #define MAX_HEADER_SIZE         25
+#define MAX_STATE_STACK_SIZE    256
 
 /*
  * HTTP request/response
@@ -23,6 +24,7 @@ typedef struct _request         request_t;
 typedef struct _response        response_t;
 typedef struct _http_header     http_header_t;
 typedef struct _http_status     http_status_t;
+typedef union  _ctx_state       ctx_state_t;
 typedef struct _handler_ctx     handler_ctx_t;
 typedef struct _state_node        ctx_node_t;
 
@@ -61,10 +63,20 @@ int            response_write(response_t *response,
                               char *data,
                               size_t data_len,
                               handler_func next_handler);
-int            response_send_headers(response_t *response);
+int            response_send_file(response_t *response,
+                                  int fd,
+                                  size_t offset,
+                                  size_t size,
+                                  handler_func next_handler);
+int            response_send_status(response_t *response, http_status_t status, char *msg);
+int            response_send_headers(response_t *response, handler_func next_handler);
 
 handler_ctx_t* context_create();
 int            context_destroy(handler_ctx_t *ctx);
+int            context_reset(handler_ctx_t *ctx);
+int            context_push(handler_ctx_t *ctx, ctx_state_t stat);
+ctx_state_t*   context_pop(handler_ctx_t *ctx);
+ctx_state_t*   context_peek(handler_ctx_t *ctx);
 
 connection_t*  connection_accept(server_t *server, int listen_fd); 
 int            connection_close(connection_t *conn);
@@ -139,19 +151,17 @@ struct _http_header {
     char    *value;
 };
 
-struct _state_node {
-    union {
-        void    *as_ptr;
-        size_t  as_size;
-        int     as_int;
-        char    *as_str;
-    } data;
-    struct _state_node *next;
+union _ctx_state {
+    void      *as_ptr;
+    long long as_long;
+    int       as_int;
+    char      *as_str;
 };
 
 struct _handler_ctx {
-    ctx_node_t   *state_head;
-    void         *conf;
+    ctx_state_t       _stat_stack[MAX_STATE_STACK_SIZE];
+    int               _stat_top;
+    void              *conf;
 };
 
 struct _request {

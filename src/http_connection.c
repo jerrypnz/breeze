@@ -132,9 +132,5 @@ void connection_run_handler(connection_t *conn, handler_func handler) {
 static void _connection_close_handler(iostream_t *stream) {
     connection_t  *conn;
     conn = (connection_t*) stream->user_data;
-    
-    request_destroy(conn->request);
-    response_destroy(conn->response);
-    //TODO context destroy
     connection_destroy(conn);
 }

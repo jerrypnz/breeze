@@ -48,7 +48,7 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     resp->connection = req->connection;
     response_set_header(resp, "Content-Type", "text/html");
     response_set_header(resp, "Server", "breeze/0.1.0");
-    response_send_headers(resp);
+    response_send_headers(resp, NULL);
     response_write(resp, response, len, NULL);
     return HANDLER_DONE;
 }

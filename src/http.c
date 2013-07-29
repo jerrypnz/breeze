@@ -639,7 +639,7 @@ static void set_common_headers(response_t *response) {
     }
 }
 
-int response_send_headers(response_t *response) {
+int response_send_headers(response_t *response, handler_func next_handler) {
     char           buffer[RESPONSE_BUFFER_SIZE];
     int            i, n, buf_len = 0;
     http_header_t  *header;
@@ -673,6 +673,7 @@ int response_send_headers(response_t *response) {
     buffer[buf_len++] = '\r';
     buffer[buf_len++] = '\n';
 
+    response->_next_handler = next_handler;
     if (iostream_write(response->_conn->stream, buffer, buf_len, on_write_finished) < 0) {
         return -1;
     }
@@ -693,6 +694,34 @@ int response_write(response_t *response,
         return -1;
     }
     return 0;
+}
+
+int response_send_file(response_t *response,
+                       int fd,
+                       size_t offset,
+                       size_t size,
+                       handler_func next_handler) {
+    if (!response->_header_sent) {
+        return -1;
+    }
+    response->_next_handler = next_handler;
+    if (iostream_sendfile(response->_conn->stream, fd,
+                          offset, size, on_write_finished) < 0) {
+        connection_close(response->_conn);
+        return -1;
+    }
+    return 0;
+}
+
+int response_send_status(response_t *resp, http_status_t status, char *msg) {
+    size_t len;
+    
+    resp->status = status;
+    len = strlen(msg);
+    resp->content_length = len;
+    response_send_headers(resp, NULL);
+    response_write(resp, msg, len, NULL);
+    return HANDLER_DONE;
 }
 
 static void on_write_finished(iostream_t *stream) {
@@ -734,7 +763,37 @@ handler_ctx_t* context_create() {
     return ctx;
 }
 
+int context_reset(handler_ctx_t *ctx) {
+    ctx->_stat_top = 0;
+    ctx->conf = NULL;
+    return 0;
+}
+
 int context_destroy(handler_ctx_t *ctx) {
     free(ctx);
     return 0;
+}
+
+int context_push(handler_ctx_t *ctx, ctx_state_t stat) {
+    if (ctx->_stat_top >= MAX_STATE_STACK_SIZE) {
+        return -1;
+    }
+    ctx->_stat_stack[ctx->_stat_top] = stat;
+    ctx->_stat_top++;
+    return 0;
+}
+
+ctx_state_t* context_pop(handler_ctx_t *ctx) {
+    if (ctx->_stat_top <= 0) {
+        return NULL;
+    }
+    ctx->_stat_top--;
+    return &ctx->_stat_stack[ctx->_stat_top];
+}
+
+ctx_state_t* context_peek(handler_ctx_t *ctx) {
+    if (ctx->_stat_top <= 0) {
+        return NULL;
+    }
+    return &ctx->_stat_stack[ctx->_stat_top - 1];
 }
