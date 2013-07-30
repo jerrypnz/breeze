@@ -730,7 +730,8 @@ static void on_write_finished(iostream_t *stream) {
 
     if (handler != NULL) {
         connection_run_handler(conn, handler);
-    } else if (resp->_done) {
+    }
+    if (resp->_done) {
         switch (resp->connection) {
         case CONN_CLOSE:
             connection_close(conn);
