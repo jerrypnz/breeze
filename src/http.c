@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 typedef enum _parser_state {
     PARSER_STATE_BAD_REQUEST = -1,
@@ -34,7 +33,6 @@ static int std_headers_hash_initialized = 0;
 static http_version_e _resolve_http_version(const char* version_str);
 static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
-static void strlowercase(const char *src, char *dst, size_t n);
 static void set_common_headers(response_t *response);
 static void on_write_finished(iostream_t *stream);
 
@@ -426,17 +424,6 @@ static int init_std_headers_hash() {
     }
     std_headers_hash_initialized = 1;
     return 0;
-}
-
-__inline__ static void strlowercase(const char *src, char *dst, size_t n) {
-    int i;
-    const char *p;
-    for (i = 0, p = src;
-         i < n && *p != '\0';
-         i++, p++) {
-        dst[i] = tolower(*p);
-    }
-    dst[i] = '\0';
 }
 
 static void handle_common_header(request_t *req, int header_index) {
