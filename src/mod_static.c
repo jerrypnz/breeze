@@ -1,4 +1,5 @@
 #include "http.h"
+#include "common.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -17,30 +18,64 @@ typedef struct _mod_static_conf {
     int  cache_age;
 } mod_static_conf_t;
 
-/*
+#define FILE_TYPE_COUNT 10
+
 typedef struct _mime_type {
     char *content_type;
-    char **file_types;
+    char *exts[FILE_TYPE_COUNT];
 } mime_type_t;
 
-mime_type_t standard_types = {
-    {"text/html", {"html", "htm", "shtml"}},
-    {"text/css", {"css"}},
-    {"text/xml", {"xml"}},
-    {"text/plain", {"txt"}},
-    {"image/png", {"png"}},
-    {"image/gif", {"gif"}},
-    {"image/tiff", {"tif", "tiff"}},
-    {"image/jpeg", {"jpg", "jpeg"}},
-    {"image/x-ms-bmp", {"bmp"}},
-    {"image/svg+xml", {"svg", "svgz"}},
-    {"application/x-javascript", {"js"}},
-    };
-*/
+mime_type_t standard_types[] = {
+    {"text/html",                {"html", "htm", "shtml", NULL}},
+    {"text/css",                 {"css", NULL}},
+    {"text/xml",                 {"xml", NULL}},
+    {"text/plain",               {"txt", NULL}},
+    {"image/png",                {"png", NULL}},
+    {"image/gif",                {"gif", NULL}},
+    {"image/tiff",               {"tif", "tiff", NULL}},
+    {"image/jpeg",               {"jpg", "jpeg", NULL}},
+    {"image/x-ms-bmp",           {"bmp", NULL}},
+    {"image/svg+xml",            {"svg", "svgz", NULL}},
+    {"application/x-javascript", {"js", NULL}}
+};
+
+static struct hsearch_data std_mime_type_hash;
+
+static int mod_static_init() {
+    int i;
+    int j;
+    size_t size;
+    ENTRY item, *ret;
+    char **ext = NULL;
+
+    size = sizeof(standard_types) / sizeof(standard_types[0]);
+
+    bzero(&std_mime_type_hash, sizeof(struct hsearch_data));
+    if (hcreate_r(size * 2, &std_mime_type_hash) == 0) {
+        perror("Error creating standard MIME type hash");
+        return -1;
+    }
+    for (i = 0; i < size; i++) {
+        for (ext = standard_types[i].exts, j = 0;
+             *ext != NULL && j < FILE_TYPE_COUNT;
+             ext++, j++) {
+            item.key = *ext;
+            item.data = standard_types[i].content_type;
+            printf("Registering standard MIME type %s:%s\n",
+                   *ext, standard_types[i].content_type);
+            if (hsearch_r(item, ENTER, &ret, &std_mime_type_hash) == 0) {
+                fprintf(stderr, "Error entering standard MIME type\n");
+            }
+        }
+    }
+    return 0;
+}
 
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
 static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
 static int static_file_handler_error(response_t *resp);
+static void handle_content_type(response_t *resp, const char *filepath);
+static int mod_static_init();
 
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
@@ -72,10 +107,9 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     }
     resp->status = STATUS_OK;
     resp->content_length = st.st_size;
-    // TODO Implement MIME type mapping
-    response_set_header(resp, "Content-Type", "application/octet-stream");
     response_set_header(resp, "Server", "breeze/0.1.0");
-
+    handle_content_type(resp, path);
+    
     val.as_int = fd;
     context_push(ctx, val);
     val.as_long = st.st_size;
@@ -83,6 +117,40 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     printf("sending headers\n");
     response_send_headers(resp, static_file_write_content);
     return HANDLER_UNFISHED;
+}
+
+static void handle_content_type(response_t *resp, const char *filepath) {
+    char  *content_type = NULL, ext[20];
+    int   dot_pos = -1;
+    int   i;
+    size_t  len = strlen(filepath);
+    ENTRY   item, *ret;
+
+    for (i = len - 1; i > 0; i--) {
+        if (filepath[i] == '.') {
+            dot_pos = i;
+            break;
+        }
+    }
+
+    if (dot_pos < 0) {
+        // No '.' found in the file name (no extension part)
+        return;
+    }
+
+    strncpy(ext, filepath + 1 + dot_pos, 20);
+    strlowercase(ext, ext, 20);
+    printf("File extension: %s\n", ext);
+    
+    item.key = ext;
+    if (hsearch_r(item, FIND, &ret, &std_mime_type_hash) == 0) {
+        return;
+    }
+    content_type = (char*) ret->data;
+    if (content_type != NULL) {
+        printf("Content type: %s\n", content_type);
+        response_set_header(resp, "Content-Type", content_type); 
+    }
 }
 
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx) {
@@ -124,6 +192,11 @@ static int static_file_handler_error(response_t *resp) {
 int main(int argc, char** args) {
     server_t *server;
     mod_static_conf_t conf;
+
+    if (mod_static_init() < 0) {
+        fprintf(stderr, "Error initializing mod_static\n");
+        return -1;
+    }
     
     server = server_create(8000, NULL);
 
@@ -143,3 +216,4 @@ int main(int argc, char** args) {
     server_start(server);
     return 0;
 }
+
