@@ -71,7 +71,6 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
         return static_file_handler_error(resp);
     }
     resp->status = STATUS_OK;
-    resp->connection = req->connection;
     resp->content_length = st.st_size;
     // TODO Implement MIME type mapping
     response_set_header(resp, "Content-Type", "application/octet-stream");

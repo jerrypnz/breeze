@@ -105,6 +105,17 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
         return;
     }
 
+    // Handle HTTP keep-alive
+    if (req->version < HTTP_VERSION_1_1 && req->connection != CONN_KEEP_ALIVE) {
+        // For HTTP/1.0, default behaviour is not keep-alive unless
+        // otherwise specified in request's Connection header.
+        resp->connection = CONN_CLOSE;
+    } else if (req->version == HTTP_VERSION_1_1 && req->connection != CONN_CLOSE) {
+        // For HTTP/1.1, default behaviour is enabling keep-alive
+        // unless specified explicitly.
+        resp->connection = CONN_KEEP_ALIVE;
+    }
+
     // TODO Handle Unknown HTTP version
     resp->version = req->version;
     // Reset handler configuration

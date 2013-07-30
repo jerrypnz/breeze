@@ -622,11 +622,6 @@ static void set_common_headers(response_t *response) {
         response->connection = CONN_CLOSE;
     }
 
-    // For HTTP version prior to HTTP/1.1, keep-alive is not supported
-    if (response->version < HTTP_VERSION_1_1) {
-        response->connection = CONN_CLOSE;
-    }
-
     switch(response->connection) {
     case CONN_KEEP_ALIVE:
         //TODO Handle keep-alive time
@@ -751,7 +746,11 @@ static void on_write_finished(iostream_t *stream) {
                 connection_close(conn);
                 break;
             }
-            // TODO Reset handler context.
+            if (context_reset(conn->context) < 0) {
+                connection_close(conn);
+                break;
+            }
+            conn->context->conf = conn->server->handler_conf;
             connection_run(conn);
             break;
         }
