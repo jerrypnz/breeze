@@ -14,14 +14,14 @@ all: $(executables)
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test_%: test_%.o %.o
+test_%: test_%.o %.o common.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 test_iostream: ioloop.o buffer.o
 test_http: stacktrace.o iostream.o ioloop.o buffer.o http_connection.o
 test_http_server: http_connection.o iostream.o ioloop.o buffer.o http.o
 
-mod_static: http_connection.o iostream.o ioloop.o buffer.o http.o http_server.o mod_static.o
+mod_static: common.o http_connection.o iostream.o ioloop.o buffer.o http.o http_server.o mod_static.o
 	$(CC) $(LDFLAGS) $^ -o $@	
 
 .PHONY: clean

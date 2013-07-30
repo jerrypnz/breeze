@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 typedef enum _parser_state {
     PARSER_STATE_BAD_REQUEST = -1,
@@ -34,7 +33,6 @@ static int std_headers_hash_initialized = 0;
 static http_version_e _resolve_http_version(const char* version_str);
 static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
-static void strlowercase(const char *src, char *dst, size_t n);
 static void set_common_headers(response_t *response);
 static void on_write_finished(iostream_t *stream);
 
@@ -428,17 +426,6 @@ static int init_std_headers_hash() {
     return 0;
 }
 
-__inline__ static void strlowercase(const char *src, char *dst, size_t n) {
-    int i;
-    const char *p;
-    for (i = 0, p = src;
-         i < n && *p != '\0';
-         i++, p++) {
-        dst[i] = tolower(*p);
-    }
-    dst[i] = '\0';
-}
-
 static void handle_common_header(request_t *req, int header_index) {
     ENTRY           ent, *ret;
     http_header_t  *header;
@@ -622,11 +609,6 @@ static void set_common_headers(response_t *response) {
         response->connection = CONN_CLOSE;
     }
 
-    // For HTTP version prior to HTTP/1.1, keep-alive is not supported
-    if (response->version < HTTP_VERSION_1_1) {
-        response->connection = CONN_CLOSE;
-    }
-
     switch(response->connection) {
     case CONN_KEEP_ALIVE:
         //TODO Handle keep-alive time
@@ -735,7 +717,8 @@ static void on_write_finished(iostream_t *stream) {
 
     if (handler != NULL) {
         connection_run_handler(conn, handler);
-    } else if (resp->_done) {
+    }
+    if (resp->_done) {
         switch (resp->connection) {
         case CONN_CLOSE:
             connection_close(conn);
@@ -751,7 +734,11 @@ static void on_write_finished(iostream_t *stream) {
                 connection_close(conn);
                 break;
             }
-            // TODO Reset handler context.
+            if (context_reset(conn->context) < 0) {
+                connection_close(conn);
+                break;
+            }
+            conn->context->conf = conn->server->handler_conf;
             connection_run(conn);
             break;
         }
