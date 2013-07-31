@@ -1,8 +1,7 @@
 #ifndef __HTTP_H
 #define __HTTP_H
 
-#define _GNU_SOURCE
-
+#include "common.h"
 #include "ioloop.h"
 #include "iostream.h"
 #include <search.h>
