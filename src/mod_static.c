@@ -107,7 +107,6 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     }
     resp->status = STATUS_OK;
     resp->content_length = st.st_size;
-    response_set_header(resp, "Server", "breeze/0.1.0");
     handle_content_type(resp, path);
     
     val.as_int = fd;
