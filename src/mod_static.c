@@ -13,8 +13,6 @@ typedef struct _mod_static_conf {
     int  enable_list_dir;
     int  enable_etag;
     int  enable_range_req;
-    int  enable_last_modified;
-    int  enable_cache;
     int  cache_age;
 } mod_static_conf_t;
 
@@ -40,6 +38,12 @@ mime_type_t standard_types[] = {
 };
 
 static struct hsearch_data std_mime_type_hash;
+
+static int mod_static_init();
+static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int static_file_handler_error(response_t *resp);
+static void handle_content_type(response_t *resp, const char *filepath);
 
 static int mod_static_init() {
     int i;
@@ -70,12 +74,6 @@ static int mod_static_init() {
     }
     return 0;
 }
-
-static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_handler_error(response_t *resp);
-static void handle_content_type(response_t *resp, const char *filepath);
-static int mod_static_init();
 
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
