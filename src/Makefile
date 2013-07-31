@@ -2,9 +2,9 @@ CC = gcc
 CFLAGS ?= -O2 -g -rdynamic -Wall -I.
 LDFLAGS ?= -O2 -g -rdynamic
 
-objects = ioloop.o buffer.o iostream.o http.o server.o location.o stacktrace.o http_connection.o http_server.o mod_static.o
-testobjs = test_buffer.o test_ioloop.o test_iostream.o test_http.o test_http_server.o
-executables = test_buffer test_ioloop test_iostream test_http test_http_server mod_static
+objects = common.o ioloop.o buffer.o iostream.o http.o server.o location.o stacktrace.o http_connection.o http_server.o mod_static.o
+testobjs = test_common.o test_buffer.o test_ioloop.o test_iostream.o test_http.o test_http_server.o
+executables = test_common test_buffer test_ioloop test_iostream test_http test_http_server mod_static
 
 vpath %.c tests
 
