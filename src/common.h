@@ -1,6 +1,10 @@
 #ifndef __COMMON_H
 #define __COMMON_H
 
+#define _XOPEN_SOURCE
+#define _GNU_SOURCE
+#define _BSD_SOURCE
+
 #include <stddef.h>
 #include <time.h>
 
@@ -17,6 +21,8 @@ enum _return_status {
 inline void strlowercase(const char *src, char *dst, size_t n);
 
 void format_http_date(const time_t *time, char *dst, size_t len);
+
+int  parse_http_date(const char* str, time_t *time);
 
 int current_http_date(char *dst, size_t len);
 

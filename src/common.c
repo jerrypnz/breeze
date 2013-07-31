@@ -21,6 +21,16 @@ void format_http_date(const time_t* time, char *dst, size_t len) {
     strftime(dst, len, HTTP_DATE_FMT, gmtime(time));
 }
 
+int parse_http_date(const char* str, time_t *time) {
+    struct tm  tm;
+    if (strptime(str, HTTP_DATE_FMT, &tm) == NULL) {
+        return -1;
+    }
+    // Assume it's GMT time since strptime does not really support %Z
+    *time = timegm(&tm);
+    return 0;
+}
+
 int current_http_date(char *dst, size_t len) {
     struct timeval tv;
     int res;
