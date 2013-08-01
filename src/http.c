@@ -702,13 +702,17 @@ int response_send_file(response_t *resp,
 }
 
 int response_send_status(response_t *resp, http_status_t status, char *msg) {
-    size_t len;
+    size_t len = 0;
     
     resp->status = status;
-    len = strlen(msg);
+    if (msg != NULL) {
+        len = strlen(msg);
+    }
     resp->content_length = len;
     response_send_headers(resp, NULL);
-    response_write(resp, msg, len, NULL);
+    if (msg != NULL) {
+        response_write(resp, msg, len, NULL);
+    }
     return HANDLER_DONE;
 }
 

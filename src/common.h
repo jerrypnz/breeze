@@ -26,4 +26,6 @@ int  parse_http_date(const char* str, time_t *time);
 
 int current_http_date(char *dst, size_t len);
 
+
+
 #endif /* end of include guard: __COMMON_H */

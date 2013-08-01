@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS ?= -O2 -g -rdynamic -Wall -I.
-LDFLAGS ?= -O2 -g -rdynamic
+LDFLAGS ?= -O2 -g -rdynamic -lcrypt
 
 objects = common.o ioloop.o buffer.o iostream.o http.o server.o location.o stacktrace.o http_connection.o http_server.o mod_static.o
 testobjs = test_common.o test_buffer.o test_ioloop.o test_iostream.o test_http.o test_http_server.o
