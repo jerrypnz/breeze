@@ -33,7 +33,7 @@ static int std_headers_hash_initialized = 0;
 static http_version_e _resolve_http_version(const char* version_str);
 static int init_std_headers_hash();
 static void handle_common_header(request_t *req, int header_index);
-static void set_common_headers(response_t *response);
+static void set_common_headers(response_t *resp);
 static void on_write_finished(iostream_t *stream);
 
 inline static const char* str_http_ver(http_version_e ver) {
@@ -505,69 +505,69 @@ response_t* response_create(connection_t *conn) {
     return resp;
 }
 
-int response_reset(response_t *response) {
-    connection_t  *conn = response->_conn;
-    hdestroy_r(&response->_header_hash);
-    bzero(response, sizeof(response_t));
-    if (hcreate_r(MAX_HEADER_SIZE, &response->_header_hash) == 0) {
+int response_reset(response_t *resp) {
+    connection_t  *conn = resp->_conn;
+    hdestroy_r(&resp->_header_hash);
+    bzero(resp, sizeof(response_t));
+    if (hcreate_r(MAX_HEADER_SIZE, &resp->_header_hash) == 0) {
         perror("Error creating header hash table\n");
         return -1;
     }
-    response->_conn = conn;
-    response->content_length = -1;
-    response->connection = CONN_KEEP_ALIVE;
+    resp->_conn = conn;
+    resp->content_length = -1;
+    resp->connection = CONN_KEEP_ALIVE;
     return 0;
 }
 
-int response_destroy(response_t *response) {
-    hdestroy_r(&response->_header_hash);
-    free(response);
+int response_destroy(response_t *resp) {
+    hdestroy_r(&resp->_header_hash);
+    free(resp);
     return 0;
 }
 
-const char* response_get_header(response_t *response, const char *header_name) {
+const char* response_get_header(response_t *resp, const char *header_name) {
     ENTRY          item, *ret;
     char           header_name_lower[64];
 
     strlowercase(header_name, header_name_lower, 64);
     item.key = header_name_lower;
 
-    if (hsearch_r(item, FIND, &ret, &response->_header_hash) == 0) {
+    if (hsearch_r(item, FIND, &ret, &resp->_header_hash) == 0) {
         return NULL;
     }
 
     return ((http_header_t*) ret->data)->value;
 }
 
-char* response_alloc(response_t *response, size_t n) {
+char* response_alloc(response_t *resp, size_t n) {
     char *res;
-    if (response->_buf_idx + n > RESPONSE_BUFFER_SIZE) {
+    if (resp->_buf_idx + n > RESPONSE_BUFFER_SIZE) {
         return NULL;
     }
-    res = response->_buffer + response->_buf_idx;
-    response->_buf_idx += n;
+    res = resp->_buffer + resp->_buf_idx;
+    resp->_buf_idx += n;
     return res;
 }
 
-int response_set_header(response_t *response, char *header_name, char *header_value) {
+int response_set_header(response_t *resp, char *header_name, char *header_value) {
     ENTRY          ent, *ret;
     http_header_t  *header;
     char           header_lowercase[64];
     char           *keybuf;
     size_t         n;
 
-    if (response->_header_sent) {
+    if (resp->_header_sent) {
         return -1;
     }
     strlowercase(header_name, header_lowercase, 64);
     ent.key = header_lowercase;
-    if (hsearch_r(ent, FIND, &ret, &response->_header_hash) != 0) {
+    if (hsearch_r(ent, FIND, &ret, &resp->_header_hash) != 0) {
         header = (http_header_t*) ret->data;
         header->value = header_value;
         return 0;
     }
 
-    header = response->headers + response->header_count++;
+    header = resp->headers + resp->header_count++;
     header->name = header_name;
     header->value = header_value;
 
@@ -575,74 +575,80 @@ int response_set_header(response_t *response, char *header_name, char *header_va
         ent.key = ret->key;
     } else {
         n = strlen(header_lowercase) + 1;
-        keybuf = response_alloc(response, n);
+        keybuf = response_alloc(resp, n);
         if (keybuf == NULL) {
             return -1;
         }
         ent.key = strncpy(keybuf, header_lowercase, n);
     }
     ent.data = header;
-    if (hsearch_r(ent, ENTER, &ret, &response->_header_hash) == 0) {
+    if (hsearch_r(ent, ENTER, &ret, &resp->_header_hash) == 0) {
         return -1;
     }
     return 0;
 }
 
-static void set_common_headers(response_t *response) {
-    char *keybuf;
-    size_t len = response->content_length;
+static void set_common_headers(response_t *resp) {
+    char *keybuf, *tmbuf;
+    size_t len = resp->content_length;
     int n;
     
     if (len >= 0) {
-        keybuf = response->_buffer + response->_buf_idx;
+        keybuf = resp->_buffer + resp->_buf_idx;
         n = snprintf(keybuf,
-                     RESPONSE_BUFFER_SIZE - response->_buf_idx,
+                     RESPONSE_BUFFER_SIZE - resp->_buf_idx,
                      "%ld",
-                     response->content_length);
+                     resp->content_length);
 
-        response->_buf_idx += (n + 1);
-        response_set_header(response, "Content-Length", keybuf);
+        resp->_buf_idx += (n + 1);
+        response_set_header(resp, "Content-Length", keybuf);
     } else {
         // No Content-Length header set, set connection header
         // to close
         // TODO Support chunked transfer encoding
-        response->connection = CONN_CLOSE;
+        resp->connection = CONN_CLOSE;
     }
 
-    switch(response->connection) {
+    switch(resp->connection) {
     case CONN_KEEP_ALIVE:
         //TODO Handle keep-alive time
-        response_set_header(response, "Connection", "keep-alive");
+        response_set_header(resp, "Connection", "keep-alive");
         break;
 
     default:
-        response_set_header(response, "Connection", "close");
+        response_set_header(resp, "Connection", "close");
         break;
+    }
+
+    response_set_header(resp, "Server", _BREEZE_NAME);
+    tmbuf = response_alloc(resp, 32);
+    if (current_http_date(tmbuf, 32) == 0) {
+        response_set_header(resp, "Date", tmbuf);
     }
 }
 
-int response_send_headers(response_t *response, handler_func next_handler) {
+int response_send_headers(response_t *resp, handler_func next_handler) {
     char           buffer[RESPONSE_BUFFER_SIZE];
     int            i, n, buf_len = 0;
     http_header_t  *header;
 
-    if (response->_header_sent) {
+    if (resp->_header_sent) {
         return -1;
     }
     
-    set_common_headers(response);
+    set_common_headers(resp);
     // Write status line
     n = snprintf(buffer,
                  RESPONSE_BUFFER_SIZE,
                  "HTTP/%s %d %s\r\n",
-                 str_http_ver(response->version),
-                 response->status.code,
-                 response->status.msg);
+                 str_http_ver(resp->version),
+                 resp->status.code,
+                 resp->status.msg);
     buf_len += n;
 
     // Write headers
-    for (i = 0; i < response->header_count; i++) {
-        header = response->headers + i;
+    for (i = 0; i < resp->header_count; i++) {
+        header = resp->headers + i;
         n = snprintf(buffer + buf_len,
                      RESPONSE_BUFFER_SIZE - buf_len,
                      "%s: %s\r\n",
@@ -655,54 +661,58 @@ int response_send_headers(response_t *response, handler_func next_handler) {
     buffer[buf_len++] = '\r';
     buffer[buf_len++] = '\n';
 
-    response->_next_handler = next_handler;
-    if (iostream_write(response->_conn->stream, buffer, buf_len, on_write_finished) < 0) {
+    resp->_next_handler = next_handler;
+    if (iostream_write(resp->_conn->stream, buffer, buf_len, on_write_finished) < 0) {
         return -1;
     }
-    response->_header_sent = 1;
+    resp->_header_sent = 1;
     return 0;
 }
 
-int response_write(response_t *response,
+int response_write(response_t *resp,
                    char *data, size_t data_len,
                    handler_func next_handler) {
-    if (!response->_header_sent) {
+    if (!resp->_header_sent) {
         return -1;
     }
-    response->_next_handler = next_handler;
-    if (iostream_write(response->_conn->stream,
+    resp->_next_handler = next_handler;
+    if (iostream_write(resp->_conn->stream,
                        data, data_len, on_write_finished) < 0) {
-        connection_close(response->_conn);
+        connection_close(resp->_conn);
         return -1;
     }
     return 0;
 }
 
-int response_send_file(response_t *response,
+int response_send_file(response_t *resp,
                        int fd,
                        size_t offset,
                        size_t size,
                        handler_func next_handler) {
-    if (!response->_header_sent) {
+    if (!resp->_header_sent) {
         return -1;
     }
-    response->_next_handler = next_handler;
-    if (iostream_sendfile(response->_conn->stream, fd,
+    resp->_next_handler = next_handler;
+    if (iostream_sendfile(resp->_conn->stream, fd,
                           offset, size, on_write_finished) < 0) {
-        connection_close(response->_conn);
+        connection_close(resp->_conn);
         return -1;
     }
     return 0;
 }
 
 int response_send_status(response_t *resp, http_status_t status, char *msg) {
-    size_t len;
+    size_t len = 0;
     
     resp->status = status;
-    len = strlen(msg);
+    if (msg != NULL) {
+        len = strlen(msg);
+    }
     resp->content_length = len;
     response_send_headers(resp, NULL);
-    response_write(resp, msg, len, NULL);
+    if (msg != NULL) {
+        response_write(resp, msg, len, NULL);
+    }
     return HANDLER_DONE;
 }
 

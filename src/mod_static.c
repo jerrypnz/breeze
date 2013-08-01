@@ -8,14 +8,17 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define MAX_EXPIRE_HOURS = 87600
+
 typedef struct _mod_static_conf {
     char root[1024];
     int  enable_list_dir;
     int  enable_etag;
     int  enable_range_req;
-    int  enable_last_modified;
-    int  enable_cache;
-    int  cache_age;
+    
+    // -1 means not set expires header; other means
+    // the expiration time (in hours)
+    int  expire_hours;
 } mod_static_conf_t;
 
 #define FILE_TYPE_COUNT 10
@@ -40,6 +43,16 @@ mime_type_t standard_types[] = {
 };
 
 static struct hsearch_data std_mime_type_hash;
+
+static int mod_static_init();
+static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int static_file_handler_error(response_t *resp);
+static void handle_content_type(response_t *resp, const char *filepath);
+static int handle_cache(request_t *req, response_t *resp,
+                        const struct stat *st, const mod_static_conf_t *conf);
+static char* generate_etag(const struct stat *st);
+
 
 static int mod_static_init() {
     int i;
@@ -71,12 +84,6 @@ static int mod_static_init() {
     return 0;
 }
 
-static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_handler_error(response_t *resp);
-static void handle_content_type(response_t *resp, const char *filepath);
-static int mod_static_init();
-
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
@@ -107,8 +114,10 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     }
     resp->status = STATUS_OK;
     resp->content_length = st.st_size;
-    response_set_header(resp, "Server", "breeze/0.1.0");
     handle_content_type(resp, path);
+    if (handle_cache(req, resp, &st, conf)) {
+        return response_send_status(resp, STATUS_NOT_MODIFIED, NULL);
+    }
     
     val.as_int = fd;
     context_push(ctx, val);
@@ -151,6 +160,59 @@ static void handle_content_type(response_t *resp, const char *filepath) {
         printf("Content type: %s\n", content_type);
         response_set_header(resp, "Content-Type", content_type); 
     }
+}
+
+static int handle_cache(request_t *req, response_t *resp,
+                        const struct stat *st, const mod_static_conf_t *conf) {
+    const char   *if_mod_since, *if_none_match;
+    char   *etag;
+    time_t  mtime, req_mtime;
+    int    not_modified = 0;
+    char   *buf;
+    char   *cache_control;
+
+    mtime = st->st_mtime;
+    if_mod_since = request_get_header(req, "if-modified-since");
+    if (if_mod_since != NULL &&
+        parse_http_date(if_mod_since, &req_mtime) == 0 &&
+        req_mtime == mtime) {
+        printf("Resource not modified\n");
+        not_modified = 1;
+    }
+    buf = response_alloc(resp, 32);
+    format_http_date(&mtime, buf, 32);
+    response_set_header(resp, "Last-Modified", buf);
+
+    if (conf->enable_etag) {
+        etag = generate_etag(st);
+        if (not_modified) {
+            if_none_match = request_get_header(req, "if-none-match");
+            if (if_none_match == NULL ||
+                strcmp(etag, if_none_match) != 0) {
+                not_modified = 0;
+            }
+        }
+        response_set_header(resp, "ETag", etag);
+    }
+
+    if (conf->expire_hours >= 0) {
+        buf = response_alloc(resp, 32);
+        mtime += conf->expire_hours * 3600;
+        format_http_date(&mtime, buf, 32);
+        response_set_header(resp, "Expires", buf);
+        cache_control = response_alloc(resp, 20);
+        snprintf(cache_control, 20, "max-age=%d", conf->expire_hours * 3600);
+    } else {
+        cache_control = "no-cache";
+    }
+    response_set_header(resp, "Cache-Control", cache_control);
+    return not_modified;
+}
+
+static char* generate_etag(const struct stat *st) {
+    char tag_buf[128];
+    snprintf(tag_buf, 128, "etag-%ld-%zu", st->st_mtime, st->st_size);
+    return crypt(tag_buf, "$1$breeze") + 10; // Skip the $id$salt part
 }
 
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx) {
@@ -211,6 +273,7 @@ int main(int argc, char** args) {
     }
 
     strncpy(conf.root, args[1], 1024);
+    conf.expire_hours = 24;
     server->handler = static_file_handle;
     server->handler_conf = &conf;
     server_start(server);
