@@ -10,10 +10,12 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 
 static void _connection_close_handler(iostream_t *stream);
 static void _on_http_header_data(iostream_t *stream, void *data, size_t len);
+static void _set_tcp_nodelay(int fd);
 
 connection_t* connection_accept(server_t *server, int listen_fd) {
     connection_t *conn;
@@ -41,7 +43,8 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
         perror("Error configuring Non-blocking");
         goto error;
     }
-    
+
+    _set_tcp_nodelay(conn_fd);
     stream = iostream_create(server->ioloop, conn_fd, 10240, 40960, conn);
     if (stream == NULL) {
         goto error;
@@ -144,4 +147,9 @@ static void _connection_close_handler(iostream_t *stream) {
     connection_t  *conn;
     conn = (connection_t*) stream->user_data;
     connection_destroy(conn);
+}
+
+static void _set_tcp_nodelay(int fd) {
+    int enable = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable));
 }
