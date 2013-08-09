@@ -96,9 +96,7 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     len = strlen(conf->root);
     strncpy(path, conf->root, 2048);
     if (req->path[0] != '/') {
-        return response_send_status(resp,
-                                    STATUS_BAD_REQUEST,
-                                    "Request path must starts with /");
+        return response_send_status(resp, STATUS_BAD_REQUEST);
     }
     strncat(path, req->path, 2048 - len);
     printf("Request path: %s, real file path: %s\n", req->path, path);
@@ -116,7 +114,7 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     resp->content_length = st.st_size;
     handle_content_type(resp, path);
     if (handle_cache(req, resp, &st, conf)) {
-        return response_send_status(resp, STATUS_NOT_MODIFIED, NULL);
+        return response_send_status(resp, STATUS_NOT_MODIFIED);
     }
     
     val.as_int = fd;
@@ -224,8 +222,7 @@ static int static_file_write_content(request_t *req, response_t *resp, handler_c
     printf("writing file\n");
     if (response_send_file(resp, fd, 0, size, static_file_cleanup) < 0) {
         fprintf(stderr, "Error sending file\n");
-        return response_send_status(resp, STATUS_NOT_FOUND,
-                                    "Error sending file to client");
+        return response_send_status(resp, STATUS_NOT_FOUND);
     }
     return HANDLER_UNFISHED;
 }
@@ -243,11 +240,10 @@ static int static_file_handler_error(response_t *resp) {
     switch(errno) {
     case EACCES:
     case EISDIR:
-        return response_send_status(resp, STATUS_FORBIDDEN, "Access Denied");
+        return response_send_status(resp, STATUS_FORBIDDEN);
     case ENOENT:
     default:
-        return response_send_status(resp, STATUS_NOT_FOUND,
-                                    "Requested resource not found");
+        return response_send_status(resp, STATUS_NOT_FOUND);
     }
 }
 

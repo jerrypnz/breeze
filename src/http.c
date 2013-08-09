@@ -1,5 +1,5 @@
-#include "http.h"
 #include "common.h"
+#include "http.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -701,18 +701,33 @@ int response_send_file(response_t *resp,
     return 0;
 }
 
-int response_send_status(response_t *resp, http_status_t status, char *msg) {
+const char *status_msg_template = "<html>"
+    "<head><title>%d %s</title></head>"
+    "<body>"
+    "<center><h2>%d %s</h2></center>"
+    "<center>Please contact website administrator to report the problem.</center>"
+    "<hr/>"
+    "<center>"
+    "Powered by <a href=\"https://github.com/moonranger/breeze\" target=\"_blank\">%s</a>"
+    "</center>"
+    "</body>"
+    "</html>";
+
+int response_send_status(response_t *resp, http_status_t status) {
     size_t len = 0;
+    char   buf[1024];
     
     resp->status = status;
-    if (msg != NULL) {
-        len = strlen(msg);
-    }
+    response_set_header(resp, "Content-Type", "text/html");
+    snprintf(buf, 1024, status_msg_template,
+             status.code, status.msg,
+             status.code, status.msg,
+             _BREEZE_NAME);
+    len = strlen(buf);
+
     resp->content_length = len;
     response_send_headers(resp, NULL);
-    if (msg != NULL) {
-        response_write(resp, msg, len, NULL);
-    }
+    response_write(resp, buf, len, NULL);
     return HANDLER_DONE;
 }
 

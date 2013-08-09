@@ -67,7 +67,7 @@ int            response_send_file(response_t *response,
                                   size_t offset,
                                   size_t size,
                                   handler_func next_handler);
-int            response_send_status(response_t *response, http_status_t status, char *msg);
+int            response_send_status(response_t *response, http_status_t status);
 int            response_send_headers(response_t *response, handler_func next_handler);
 
 handler_ctx_t* context_create();
