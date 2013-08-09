@@ -12,6 +12,7 @@
 
 typedef struct _mod_static_conf {
     char root[1024];
+    char *index[10];
     int  enable_list_dir;
     int  enable_etag;
     int  enable_range_req;
@@ -47,7 +48,7 @@ static struct hsearch_data std_mime_type_hash;
 static int mod_static_init();
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
 static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_handler_error(response_t *resp);
+static int static_file_handler_error(response_t *resp, int fd);
 static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
                         const struct stat *st, const mod_static_conf_t *conf);
@@ -103,12 +104,12 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     fd = open(path, O_RDONLY);
     if (fd < 0) {
         perror("Resource not found");
-        return static_file_handler_error(resp);
+        return static_file_handler_error(resp, fd);
     }
     res = fstat(fd, &st);
     if (res < 0) {
         perror("Error fstat");
-        return static_file_handler_error(resp);
+        return static_file_handler_error(resp, fd);
     }
     resp->status = STATUS_OK;
     resp->content_length = st.st_size;
@@ -236,8 +237,11 @@ static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *
     return HANDLER_DONE;
 }
 
-static int static_file_handler_error(response_t *resp) {
-    switch(errno) {
+static int static_file_handler_error(response_t *resp, int fd) {
+    int err = errno;
+    if (fd > 0)
+        (void) close(fd); // Don't care the failure
+    switch(err) {
     case EACCES:
     case EISDIR:
         return response_send_status(resp, STATUS_FORBIDDEN);
@@ -270,6 +274,8 @@ int main(int argc, char** args) {
 
     strncpy(conf.root, args[1], 1024);
     conf.expire_hours = 24;
+    conf.index[0] = "index.html";
+    conf.index[1] = "index.htm";
     server->handler = static_file_handle;
     server->handler_conf = &conf;
     server_start(server);
