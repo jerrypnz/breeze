@@ -53,6 +53,7 @@ static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
                         const struct stat *st, const mod_static_conf_t *conf);
 static char* generate_etag(const struct stat *st);
+static int try_open_file(const char *path, int *fd, struct stat *st);
 
 
 static int mod_static_init() {
@@ -85,12 +86,35 @@ static int mod_static_init() {
     return 0;
 }
 
+static int try_open_file(const char *path, int *fdptr, struct stat *st) {
+    int fd, res;
+
+    printf("Try opening file: %s", path);
+    res = stat(path, st);
+    if (res < 0) {
+        return -1;
+    }
+
+    if (S_ISDIR(st->st_mode)) {
+        return 1;
+    } else if (S_ISREG(st->st_mode)) {
+        fd = open(path, O_RDONLY);
+        if (fd < 0) {
+            return -1;
+        }
+        *fdptr = fd;
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
-    int               fd, res;
+    int               fd = -1, res, i;
     struct stat       st;
-    size_t            len;
+    size_t            len, pathlen;
     ctx_state_t       val;
 
     conf = (mod_static_conf_t*) ctx->conf;
@@ -101,15 +125,19 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     }
     strncat(path, req->path, 2048 - len);
     printf("Request path: %s, real file path: %s\n", req->path, path);
-    fd = open(path, O_RDONLY);
-    if (fd < 0) {
-        perror("Resource not found");
-        return static_file_handler_error(resp, fd);
-    }
-    res = fstat(fd, &st);
+    res = try_open_file(path, &fd, &st);
     if (res < 0) {
-        perror("Error fstat");
         return static_file_handler_error(resp, fd);
+    } else if (res > 0) { // Is a directory, try index files.
+        pathlen = strlen(path);
+        for (i = 0; i < 10 && res != 0 && conf->index[i] != NULL; i++) {
+            path[pathlen] = '\0';
+            strncat(path, conf->index[i], 2048 - pathlen);
+            res = try_open_file(path, &fd, &st);
+        }
+        if (res != 0) {
+            return static_file_handler_error(resp, fd);
+        }
     }
     resp->status = STATUS_OK;
     resp->content_length = st.st_size;
