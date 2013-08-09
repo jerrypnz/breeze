@@ -23,12 +23,21 @@ The target executable files will appear in the same directory.
 ## Usage
 
 Currently only some test executables are provided. Some are unit tests,
-others are simple test servers. For a hello world http server, please
-run `test_http_server`.
+others are simple test servers.
+
+For the static file module, please run `mod_static <root_dir>`. It will server
+static files on port 8000.
+
+For a hello world http server, please run `test_http_server`. It will return
+a short HTML for every request on port 8000.
 
 ## TODO
 
-TODO
+- Index file support for static file module
+- HTTP chunked encoding, gzip compression
+- FastCGI support
+- Automatically close keep-alive connection on server side
+- Implement configuration file module
 
 ## Lisence
 
