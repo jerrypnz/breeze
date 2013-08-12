@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define MAX_EXPIRE_HOURS = 87600
 
@@ -48,12 +49,14 @@ static struct hsearch_data std_mime_type_hash;
 static int mod_static_init();
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
 static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_handler_error(response_t *resp, int fd);
+static int static_file_handle_error(response_t *resp, int fd);
 static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
                         const struct stat *st, const mod_static_conf_t *conf);
 static char* generate_etag(const struct stat *st);
 static int try_open_file(const char *path, int *fd, struct stat *st);
+static int static_file_listdir(response_t *resp, const char *path,
+                               const char *realpath);
 
 
 static int mod_static_init() {
@@ -89,7 +92,7 @@ static int mod_static_init() {
 static int try_open_file(const char *path, int *fdptr, struct stat *st) {
     int fd, res;
 
-    printf("Try opening file: %s", path);
+    printf("Try opening file: %s\n", path);
     res = stat(path, st);
     if (res < 0) {
         return -1;
@@ -107,6 +110,58 @@ static int try_open_file(const char *path, int *fdptr, struct stat *st) {
     } else {
         return -1;
     }
+}
+
+const char *listdir_header =
+    "<html>"
+    "<head><title>Index of %s/</title></head>"
+    "<body>"
+    "<h1>Index of %s/</h1>"
+    "<hr/>"
+    "<pre>";
+
+const char *listdir_file = "<a href=\"%s\">%s</a>\r\n";
+const char *listdir_dir = "<a href=\"%s\">%s/</a>\r\n";
+
+const char *listdir_footer =
+    "</pre>"
+    "<hr/>"
+    "<p>Powered by "
+    "<a href=\"https://github.com/moonranger/breeze\" target=\"_blank\">%s</a>"
+    "</p>"
+    "</body>"
+    "</html>";
+
+static int static_file_listdir(response_t *resp, const char *path,
+                               const char *realpath) {
+    DIR    *dp;
+    struct dirent *ep;
+    char   buf[2048];
+    int    idx = 0;
+
+    dp = opendir(realpath);
+    if (dp == NULL) {
+        return static_file_handle_error(resp, -1);
+    }
+    resp->status = STATUS_OK;
+    resp->connection = CONN_CLOSE;
+    response_set_header(resp, "Content-Type", "text/html");
+    response_send_headers(resp, NULL);
+    idx += snprintf(buf, 2048, listdir_header, path, path);
+    while ((ep = readdir(dp))) {
+        idx += snprintf(buf + idx, 2048 - idx,
+                        ep->d_type == DT_DIR ? listdir_dir : listdir_file,
+                        ep->d_name, ep->d_name);
+        if (2048 - idx < 255) {
+            response_write(resp, buf, idx, NULL);
+            idx = 0;
+        }
+    }
+    (void) closedir(dp);
+    idx += snprintf(buf + idx, 2048 - idx, listdir_footer, _BREEZE_NAME);
+    response_write(resp, buf, idx, NULL);
+
+    return HANDLER_DONE;
 }
 
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
@@ -127,16 +182,26 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     printf("Request path: %s, real file path: %s\n", req->path, path);
     res = try_open_file(path, &fd, &st);
     if (res < 0) {
-        return static_file_handler_error(resp, fd);
+        return static_file_handle_error(resp, fd);
     } else if (res > 0) { // Is a directory, try index files.
         pathlen = strlen(path);
+        if (path[pathlen - 1] != '/') {
+            path[pathlen] = '/';
+            path[pathlen + 1] = '\0';
+            pathlen++;
+        }
         for (i = 0; i < 10 && res != 0 && conf->index[i] != NULL; i++) {
             path[pathlen] = '\0';
             strncat(path, conf->index[i], 2048 - pathlen);
             res = try_open_file(path, &fd, &st);
         }
         if (res != 0) {
-            return static_file_handler_error(resp, fd);
+            if (conf->enable_list_dir) {
+                path[pathlen] = '\0';
+                return static_file_listdir(resp, req->path, path);
+            } else {
+                return static_file_handle_error(resp, fd);
+            }
         }
     }
     resp->status = STATUS_OK;
@@ -265,7 +330,7 @@ static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *
     return HANDLER_DONE;
 }
 
-static int static_file_handler_error(response_t *resp, int fd) {
+static int static_file_handle_error(response_t *resp, int fd) {
     int err = errno;
     if (fd > 0)
         (void) close(fd); // Don't care the failure
@@ -282,6 +347,7 @@ static int static_file_handler_error(response_t *resp, int fd) {
 int main(int argc, char** args) {
     server_t *server;
     mod_static_conf_t conf;
+    bzero(&conf, sizeof(mod_static_conf_t));
 
     if (mod_static_init() < 0) {
         fprintf(stderr, "Error initializing mod_static\n");
@@ -302,6 +368,7 @@ int main(int argc, char** args) {
 
     strncpy(conf.root, args[1], 1024);
     conf.expire_hours = 24;
+    conf.enable_list_dir = 1;
     conf.index[0] = "index.html";
     conf.index[1] = "index.htm";
     server->handler = static_file_handle;
