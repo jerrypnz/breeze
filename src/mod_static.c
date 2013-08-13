@@ -2,6 +2,7 @@
 #include "common.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -57,6 +58,7 @@ static char* generate_etag(const struct stat *st);
 static int try_open_file(const char *path, int *fd, struct stat *st);
 static int static_file_listdir(response_t *resp, const char *path,
                                const char *realpath);
+static int dir_filter(const struct dirent *ent);
 
 
 static int mod_static_init() {
@@ -114,14 +116,14 @@ static int try_open_file(const char *path, int *fdptr, struct stat *st) {
 
 const char *listdir_header =
     "<html>"
-    "<head><title>Index of %s/</title></head>"
+    "<head><title>Index of %s</title></head>"
     "<body>"
-    "<h1>Index of %s/</h1>"
+    "<h1>Index of %s</h1>"
     "<hr/>"
     "<pre>";
 
 const char *listdir_file = "<a href=\"%s\">%s</a>\r\n";
-const char *listdir_dir = "<a href=\"%s\">%s/</a>\r\n";
+const char *listdir_dir = "<a href=\"%s/\">%s/</a>\r\n";
 
 const char *listdir_footer =
     "</pre>"
@@ -134,13 +136,13 @@ const char *listdir_footer =
 
 static int static_file_listdir(response_t *resp, const char *path,
                                const char *realpath) {
-    DIR    *dp;
-    struct dirent *ep;
+    struct dirent **ent_list, *ent;
+    int    ent_len;
     char   buf[2048];
-    int    idx = 0;
+    int    idx = 0, i;
 
-    dp = opendir(realpath);
-    if (dp == NULL) {
+    printf("Opening dir: %s\n", realpath);
+    if ((ent_len = scandir(realpath, &ent_list, dir_filter, versionsort)) < 0) {
         return static_file_handle_error(resp, -1);
     }
     resp->status = STATUS_OK;
@@ -148,26 +150,37 @@ static int static_file_listdir(response_t *resp, const char *path,
     response_set_header(resp, "Content-Type", "text/html");
     response_send_headers(resp, NULL);
     idx += snprintf(buf, 2048, listdir_header, path, path);
-    while ((ep = readdir(dp))) {
+    for (i = 0; i < ent_len; i++) {
+        ent = ent_list[i];
         idx += snprintf(buf + idx, 2048 - idx,
-                        ep->d_type == DT_DIR ? listdir_dir : listdir_file,
-                        ep->d_name, ep->d_name);
+                        ent->d_type == DT_DIR ? listdir_dir : listdir_file,
+                        ent->d_name, ent->d_name);
         if (2048 - idx < 255) {
             response_write(resp, buf, idx, NULL);
             idx = 0;
         }
+        free(ent);
     }
-    (void) closedir(dp);
+    free(ent_list);
     idx += snprintf(buf + idx, 2048 - idx, listdir_footer, _BREEZE_NAME);
     response_write(resp, buf, idx, NULL);
 
     return HANDLER_DONE;
 }
 
+static int dir_filter(const struct dirent *ent) {
+    const char *name = ent->d_name;
+    if (name[0] == '.' && name[1] == '\0') {
+        // Skip "."
+        return 0;
+    }
+    return 1;
+}
+
 int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
-    int               fd = -1, res, i;
+    int               fd = -1, res, i, use_301;
     struct stat       st;
     size_t            len, pathlen;
     ctx_state_t       val;
@@ -175,6 +188,9 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     conf = (mod_static_conf_t*) ctx->conf;
     len = strlen(conf->root);
     strncpy(path, conf->root, 2048);
+    if (path[len - 1] == '/') {
+        path[len - 1] = '\0';
+    }
     if (req->path[0] != '/') {
         return response_send_status(resp, STATUS_BAD_REQUEST);
     }
@@ -185,19 +201,30 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
         return static_file_handle_error(resp, fd);
     } else if (res > 0) { // Is a directory, try index files.
         pathlen = strlen(path);
+        use_301 = 0;
         if (path[pathlen - 1] != '/') {
             path[pathlen] = '/';
             path[pathlen + 1] = '\0';
             pathlen++;
+            use_301 = 1;
         }
         for (i = 0; i < 10 && res != 0 && conf->index[i] != NULL; i++) {
             path[pathlen] = '\0';
             strncat(path, conf->index[i], 2048 - pathlen);
             res = try_open_file(path, &fd, &st);
         }
+        path[pathlen] = '\0';
         if (res != 0) {
             if (conf->enable_list_dir) {
-                path[pathlen] = '\0';
+                if (use_301) {
+                    // TODO Support HTTPS
+                    snprintf(path, 2048, "http://%s%s/", req->host, req->path);
+                    response_set_header(resp, "Location", path);
+                    resp->status = STATUS_MOVED;
+                    resp->content_length = 0;
+                    response_send_headers(resp, NULL);
+                    return HANDLER_DONE;
+                }
                 return static_file_listdir(resp, req->path, path);
             } else {
                 return static_file_handle_error(resp, fd);
