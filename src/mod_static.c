@@ -255,6 +255,8 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     
     val.as_int = fd;
     context_push(ctx, val);
+    val.as_long = 0;
+    context_push(ctx, val);
     val.as_long = st.st_size;
     context_push(ctx, val);
     printf("sending headers\n");
@@ -351,12 +353,13 @@ static char* generate_etag(const struct stat *st) {
 
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     int fd;
-    size_t size;
+    size_t size, offset;
 
     size = context_pop(ctx)->as_long;
+    offset = context_pop(ctx)->as_long;
     fd = context_peek(ctx)->as_int;
     printf("writing file\n");
-    if (response_send_file(resp, fd, 0, size, static_file_cleanup) < 0) {
+    if (response_send_file(resp, fd, offset, size, static_file_cleanup) < 0) {
         fprintf(stderr, "Error sending file\n");
         return response_send_status(resp, STATUS_NOT_FOUND);
     }
