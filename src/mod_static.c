@@ -16,9 +16,10 @@ typedef struct _mod_static_conf {
     char root[1024];
     char *index[10];
     int  enable_list_dir;
+    int  show_hidden_file;
     int  enable_etag;
     int  enable_range_req;
-    
+
     // -1 means not set expires header; other means
     // the expiration time (in hours)
     int  expire_hours;
@@ -46,6 +47,15 @@ mime_type_t standard_types[] = {
 };
 
 static struct hsearch_data std_mime_type_hash;
+
+/*
+ * dir_filter uses this flag to decide whether to filter out
+ * hidden files (dot files). Since C does not have closure, we
+ * have to use a global variable to hack it.
+ * It is set to the value of a
+ * mod_static_conf_t.show_hidden_file before listing the file.
+ */
+static int show_hidden_file = 0;
 
 static int mod_static_init();
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
@@ -170,9 +180,13 @@ static int static_file_listdir(response_t *resp, const char *path,
 
 static int dir_filter(const struct dirent *ent) {
     const char *name = ent->d_name;
-    if (name[0] == '.' && name[1] == '\0') {
-        // Skip "."
-        return 0;
+    if (name[0] == '.') {
+        if (name[1] == '\0')
+            return 0; // Skip "."
+        else if (name[1] == '.' && name[2] == '\0')
+            return 1; // Show ".." for parent dir
+        else if (!show_hidden_file)
+            return 0;
     }
     return 1;
 }
@@ -225,6 +239,7 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
                     response_send_headers(resp, NULL);
                     return HANDLER_DONE;
                 }
+                show_hidden_file = conf->show_hidden_file;
                 return static_file_listdir(resp, req->path, path);
             } else {
                 return static_file_handle_error(resp, fd);
