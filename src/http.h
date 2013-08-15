@@ -115,6 +115,7 @@ extern http_status_t STATUS_UNAUTHORIZED;
 extern http_status_t STATUS_FORBIDDEN;
 extern http_status_t STATUS_NOT_FOUND;
 extern http_status_t STATUS_METHOD_NOT_ALLOWED;
+extern http_status_t STATUS_RANGE_NOT_SATISFIABLE;
 
 // 5xx server errors
 extern http_status_t STATUS_INTERNAL_ERROR;

@@ -253,13 +253,14 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     fileoffset = 0;
     filesize = st.st_size;
     res = handle_range(req, resp, &fileoffset, &filesize);
-    if (res > 0) {
+    if (res < 0) {
         resp->status = STATUS_OK;
     } else if (res == 0) {
         resp->status = STATUS_PARTIAL_CONTENT;
     } else {
-        return response_send_status(resp, STATUS_BAD_REQUEST);
+        return response_send_status(resp, STATUS_RANGE_NOT_SATISFIABLE);
     }
+
     resp->content_length = filesize;
     handle_content_type(resp, path);
     if (handle_cache(req, resp, &st, conf)) {
@@ -277,19 +278,25 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     return HANDLER_UNFISHED;
 }
 
+/*
+ * Return values:
+ *  0:  valid range request
+ *  1:  range not satisfiable (should return 416)
+ *  -1: syntactically invalid range (ignore, return full content)
+ */
 static int handle_range(request_t *req, response_t *resp,
                         size_t *offset, size_t *size) {
     const char   *range_spec;
     char         buf[100], *pos;
-    size_t       len, total_size = *size, off, sz;
+    size_t       len, total_size = *size, off, sz, end;
     int          idx;
 
     range_spec = request_get_header(req, "range");
     if (range_spec == NULL) {
-        return 1;
+        return -1;
     }
     len = strlen(range_spec);
-    if (len < 8) { // at least have "bytes=n-" or "bytes=-n"
+    if (len < 8) {
         return -1;
     }
     if (strstr(range_spec, "bytes=") != range_spec) {
@@ -311,16 +318,25 @@ static int handle_range(request_t *req, response_t *resp,
     idx = pos - buf;
     if (idx == 0) {
         sz = atol(buf + 1);
+        end = total_size;
         off = total_size - sz;
     } else if (idx == len - 1) {
         buf[idx] = '\0';
         off = atol(buf);
+        end = total_size;
         sz = total_size - off;
     } else {
         buf[idx] = '\0';
         off = atol(buf);
-        sz = atol(buf + idx + 1) - off + 1;
+        end = atol(buf + idx + 1);
+        sz = end - off + 1;
     }
+
+    if (end < off)
+        return -1;
+    if (off >= total_size || sz > total_size)
+        return 1;
+
     response_set_header_printf(resp, "Content-Range", "bytes %ld-%ld/%ld",
                                off, off + sz - 1, total_size);
     *offset = off;
