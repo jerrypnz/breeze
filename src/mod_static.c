@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -64,6 +65,8 @@ static int static_file_handle_error(response_t *resp, int fd);
 static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
                         const struct stat *st, const mod_static_conf_t *conf);
+static int handle_range(request_t *req, response_t *resp,
+                        size_t *offset, size_t *size);
 static char* generate_etag(const struct stat *st);
 static int try_open_file(const char *path, int *fd, struct stat *st);
 static int static_file_listdir(response_t *resp, const char *path,
@@ -149,7 +152,7 @@ static int static_file_listdir(response_t *resp, const char *path,
     struct dirent **ent_list, *ent;
     int    ent_len;
     char   buf[2048];
-    int    idx = 0, i;
+    int    pos = 0, i;
 
     printf("Opening dir: %s\n", realpath);
     if ((ent_len = scandir(realpath, &ent_list, dir_filter, versionsort)) < 0) {
@@ -159,21 +162,21 @@ static int static_file_listdir(response_t *resp, const char *path,
     resp->connection = CONN_CLOSE;
     response_set_header(resp, "Content-Type", "text/html");
     response_send_headers(resp, NULL);
-    idx += snprintf(buf, 2048, listdir_header, path, path);
+    pos += snprintf(buf, 2048, listdir_header, path, path);
     for (i = 0; i < ent_len; i++) {
         ent = ent_list[i];
-        idx += snprintf(buf + idx, 2048 - idx,
+        pos += snprintf(buf + pos, 2048 - pos,
                         ent->d_type == DT_DIR ? listdir_dir : listdir_file,
                         ent->d_name, ent->d_name);
-        if (2048 - idx < 255) {
-            response_write(resp, buf, idx, NULL);
-            idx = 0;
+        if (2048 - pos < 255) {
+            response_write(resp, buf, pos, NULL);
+            pos = 0;
         }
         free(ent);
     }
     free(ent_list);
-    idx += snprintf(buf + idx, 2048 - idx, listdir_footer, _BREEZE_NAME);
-    response_write(resp, buf, idx, NULL);
+    pos += snprintf(buf + pos, 2048 - pos, listdir_footer, _BREEZE_NAME);
+    response_write(resp, buf, pos, NULL);
 
     return HANDLER_DONE;
 }
@@ -196,7 +199,7 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     char              path[2048];
     int               fd = -1, res, i, use_301;
     struct stat       st;
-    size_t            len, pathlen;
+    size_t            len, pathlen, filesize, fileoffset;
     ctx_state_t       val;
 
     conf = (mod_static_conf_t*) ctx->conf;
@@ -246,8 +249,19 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
             }
         }
     }
-    resp->status = STATUS_OK;
-    resp->content_length = st.st_size;
+
+    fileoffset = 0;
+    filesize = st.st_size;
+    res = handle_range(req, resp, &fileoffset, &filesize);
+    if (res < 0) {
+        resp->status = STATUS_OK;
+    } else if (res == 0) {
+        resp->status = STATUS_PARTIAL_CONTENT;
+    } else {
+        return response_send_status(resp, STATUS_RANGE_NOT_SATISFIABLE);
+    }
+
+    resp->content_length = filesize;
     handle_content_type(resp, path);
     if (handle_cache(req, resp, &st, conf)) {
         return response_send_status(resp, STATUS_NOT_MODIFIED);
@@ -255,11 +269,79 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     
     val.as_int = fd;
     context_push(ctx, val);
-    val.as_long = st.st_size;
+    val.as_long = fileoffset;
+    context_push(ctx, val);
+    val.as_long = filesize;
     context_push(ctx, val);
     printf("sending headers\n");
     response_send_headers(resp, static_file_write_content);
     return HANDLER_UNFISHED;
+}
+
+/*
+ * Return values:
+ *  0:  valid range request
+ *  1:  range not satisfiable (should return 416)
+ *  -1: syntactically invalid range (ignore, return full content)
+ */
+static int handle_range(request_t *req, response_t *resp,
+                        size_t *offset, size_t *size) {
+    const char   *range_spec;
+    char         buf[100], *pos;
+    size_t       len, total_size = *size, off, sz, end;
+    int          idx;
+
+    range_spec = request_get_header(req, "range");
+    if (range_spec == NULL) {
+        return -1;
+    }
+    len = strlen(range_spec);
+    if (len < 8) {
+        return -1;
+    }
+    if (strstr(range_spec, "bytes=") != range_spec) {
+        fprintf(stderr, "Only byte ranges are supported(error range:%s)\n",
+                range_spec);
+        return -1;
+    }
+    strncpy(buf, range_spec + 6, 100);
+    len = strlen(buf);
+    if (index(buf, ',') != NULL) {
+        fprintf(stderr, "Multiple ranges are not supported.\n");
+        return -1;
+    }
+    pos = index(buf, '-');
+    if (pos == NULL) {
+        fprintf(stderr, "Invalid range spec: %s.\n", range_spec);
+        return -1;
+    }
+    idx = pos - buf;
+    if (idx == 0) {
+        sz = atol(buf + 1);
+        end = total_size;
+        off = total_size - sz;
+    } else if (idx == len - 1) {
+        buf[idx] = '\0';
+        off = atol(buf);
+        end = total_size;
+        sz = total_size - off;
+    } else {
+        buf[idx] = '\0';
+        off = atol(buf);
+        end = atol(buf + idx + 1);
+        sz = end - off + 1;
+    }
+
+    if (end < off)
+        return -1;
+    if (off >= total_size || sz > total_size)
+        return 1;
+
+    response_set_header_printf(resp, "Content-Range", "bytes %ld-%ld/%ld",
+                               off, off + sz - 1, total_size);
+    *offset = off;
+    *size = sz;
+    return 0;
 }
 
 static void handle_content_type(response_t *resp, const char *filepath) {
@@ -351,12 +433,13 @@ static char* generate_etag(const struct stat *st) {
 
 static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     int fd;
-    size_t size;
+    size_t size, offset;
 
     size = context_pop(ctx)->as_long;
+    offset = context_pop(ctx)->as_long;
     fd = context_peek(ctx)->as_int;
     printf("writing file\n");
-    if (response_send_file(resp, fd, 0, size, static_file_cleanup) < 0) {
+    if (response_send_file(resp, fd, offset, size, static_file_cleanup) < 0) {
         fprintf(stderr, "Error sending file\n");
         return response_send_status(resp, STATUS_NOT_FOUND);
     }
