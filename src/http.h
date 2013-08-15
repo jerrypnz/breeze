@@ -57,6 +57,8 @@ int            response_reset(response_t *resp);
 int            response_destroy(response_t *response);
 const char*    response_get_header(response_t *response, const char *header_name);
 int            response_set_header(response_t *response, char *name, char *value);
+int            response_set_header_printf(response_t *response, char* name,
+                                          const char *fmt, ...);
 char*          response_alloc(response_t *response, size_t n);
 int            response_write(response_t *response,
                               char *data,
@@ -99,6 +101,7 @@ extern http_status_t STATUS_OK;
 extern http_status_t STATUS_CREATED;
 extern http_status_t STATUS_ACCEPTED;
 extern http_status_t STATUS_NO_CONTENT;
+extern http_status_t STATUS_PARTIAL_CONTENT;
 
 // 3xx redirection
 extern http_status_t STATUS_MOVED;

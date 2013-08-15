@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 typedef enum _parser_state {
     PARSER_STATE_BAD_REQUEST = -1,
@@ -461,6 +462,7 @@ http_status_t STATUS_OK = {200, "OK"};
 http_status_t STATUS_CREATED = {201, "Created"};
 http_status_t STATUS_ACCEPTED = {202, "Accepted"};
 http_status_t STATUS_NO_CONTENT = {204, "No Content"};
+http_status_t STATUS_PARTIAL_CONTENT = {206, "Partial Content"};
 
 // 3xx redirection
 http_status_t STATUS_MOVED = {301, "Moved Permanently"};
@@ -586,6 +588,23 @@ int response_set_header(response_t *resp, char *header_name, char *header_value)
         return -1;
     }
     return 0;
+}
+
+int response_set_header_printf(response_t *resp, char* name,
+                               const char *fmt, ...) {
+    char *buf = resp->_buffer + resp->_buf_idx;
+    size_t max_len = RESPONSE_BUFFER_SIZE - resp->_buf_idx;
+    int len = 0, res;
+    va_list ap;
+    va_start(ap, fmt);
+    len = vsnprintf(buf, max_len, fmt, ap);
+    va_end(ap);
+    res = response_set_header(resp, name, buf);
+    if (res == 0) {
+        // Only truly allocate the buffer when the operation succeeds.
+        resp->_buf_idx += (len + 1);
+    }
+    return res;
 }
 
 static void set_common_headers(response_t *resp) {
