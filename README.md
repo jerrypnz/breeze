@@ -1,13 +1,26 @@
 # Breeze
 
-This is a simple HTTP server inspired by [Tornado Web Server](https://github.com/facebook/tornado),
-for practising my Linux programming kills. No third-party libraries are used, only glibc.
+This is a simple HTTP server inspired by
+[Tornado Web Server](https://github.com/facebook/tornado), for
+practising my Linux programming skills. No third-party libraries are
+used, only glibc.
 
-This project is still a work-on-progress. It is not working now, but feel free to read any code you
-are interested in.
+This project is still a work-on-progress. But several features are
+already implemented:
 
-Currently you can run the `test_http_server.c` program to see a hello-world server running on
-port 8000.
+- ioloop/iostream: Async IO module inspired by Tornado
+- buffer: Simple ring-buffer module
+- http: Core HTTP related features like protocol parser,
+  handler architecture, etc.
+- mod_static: A module that could serve static files and support basic
+  MIME mapping, cache-control, welcome files, directory listing,
+  ranged request (partially).
+
+A lot work needs to be done, but it won't stop you from trying the
+features already implemented. There are several unit test programs
+that test individual modules. A `mod_static` program is also provided
+for trying static file serving. Please refer to the following sections
+for instructions on how to run it.
 
 ## Build
 
@@ -25,19 +38,41 @@ The target executable files will appear in the same directory.
 Currently only some test executables are provided. Some are unit tests,
 others are simple test servers.
 
-For the static file module, please run `mod_static <root_dir>`. It will server
-static files on port 8000.
+### Test static file module
 
-For a hello world http server, please run `test_http_server`. It will return
-a short HTML for every request on port 8000.
+Run the following command in `src` directory:
+
+```bash
+./mod_static <root_dir>
+```
+
+A server on port 8000 will be started. You could visit
+http://localhost:8000 to see the result.
+
+### Hello world HTTP server
+
+Run the following command in `src` directory:
+
+```bash
+./test_http_server
+```
+
+A server on port 8000 will be started. It will return a short HTML for
+any request on port 8000.
 
 ## TODO
 
-- Index file support for static file module
+- Implement configuration file module
+- Automatically close keep-alive connection on server side
 - HTTP chunked encoding, gzip compression
 - FastCGI support
-- Automatically close keep-alive connection on server side
-- Implement configuration file module
+- File upload module
+- Master-worker multi-process architecture
+
+## Known Bugs
+
+- The server stops responding to any request on high load (>2000
+  concurrent connections)
 
 ## Lisence
 
