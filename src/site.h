@@ -22,7 +22,7 @@ struct _location {
         regex_t  *regex;
     } uri;
     int                 match_type;
-    handler_t           *handler;
+    handler_func        *handler;
     void                *handler_conf;
     struct _location    *next;
 };
@@ -43,10 +43,10 @@ struct _site {
      * Using this structure, we can stop at
      * the first match and it is guaranteed to be the best match.
      */
-    location_t              location_head;
+    location_t              *location_head;
 };
 
-typedef _site_conf {
+typedef struct _site_conf {
     site_t               *sites[MAX_SITES];
     int                  site_size;
     struct hsearch_data  site_hash;
@@ -62,8 +62,8 @@ site_t      *site_create(const char* host);
 int          site_destroy(site_t *site);
 
 int         site_add_location(site_t *site, int type,
-                              const char *prefix_or_regex,
-                              handler_t *handler
+                              char *prefix_or_regex,
+                              handler_func *handler,
                               void      *handler_conf);
 
 #endif /* end of include guard: __LOCATION_H */
