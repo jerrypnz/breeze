@@ -4,6 +4,9 @@
 #include <string.h>
 #include <assert.h>
 
+static site_t     *find_site(site_conf_t *conf, const char *host);
+static location_t *find_location(site_t *site, const char *path);
+
 site_conf_t *site_conf_create() {
     site_conf_t  *conf;
 
@@ -22,13 +25,11 @@ site_conf_t *site_conf_create() {
     return conf;
 }
 
-
 int site_conf_destroy(site_conf_t *conf) {
     hdestroy_r(&conf->site_hash);
     free(conf);
     return 0;
 }
-
 
 int site_conf_add_site(site_conf_t *conf, site_t *site) {
     char *host = site->host;
@@ -75,7 +76,6 @@ site_t *site_create(const char* host) {
     return site;
 }
 
-
 int site_destroy(site_t *site) {
     location_t *prev, *loc = site->location_head;
     
@@ -88,11 +88,9 @@ int site_destroy(site_t *site) {
     return 0;
 }
 
-
 int site_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     return response_send_status(resp, STATUS_NOT_FOUND);
 }
-
 
 int site_add_location(site_t *site, int type,
                       char *prefix_or_regex,
