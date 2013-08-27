@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-int main(int argc, char *argv[]) {
+void test_date_functions() {
     char buf[50];
     time_t time;
     
@@ -16,6 +16,21 @@ int main(int argc, char *argv[]) {
     
     format_http_date(&time, buf, 50);
     printf("Current time in HTTP format(add 81 secs): %s\n", buf);
-    
+}
+
+void test_path_starts_with() {
+    assert(path_starts_with("/bar", "/bar/11") > 0);
+    assert(path_starts_with("/bar", "/bar/") > 0);
+    assert(path_starts_with("/bar", "/bar") > 0);
+    assert(path_starts_with("/bar", "/bar1") == 0);
+    assert(path_starts_with("/bar/", "/bar/11") > 0);
+    assert(path_starts_with("/bar/", "/bar") > 0);
+    assert(path_starts_with("/", "/bar/11") > 0);
+}
+
+
+int main(int argc, char *argv[]) {
+    test_date_functions();
+    test_path_starts_with();
     return 0;
 }
