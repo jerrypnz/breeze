@@ -57,7 +57,8 @@ int path_starts_with(const char* prefix, const char* path) {
         prefix++;
     }
 
-    if (*prefix == '\0' && (*path == '\0' || *path == '/')) 
+    if (*prefix == '\0'
+        && (*path == '\0' || *path == '/' || *(prefix-1) == '/'))
         return match_count; 
     else 
         return 0;

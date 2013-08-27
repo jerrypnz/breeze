@@ -19,13 +19,13 @@ void test_date_functions() {
 }
 
 void test_path_starts_with() {
+    assert(path_starts_with("/", "/bar/11") > 0);
+    assert(path_starts_with("/", "/") > 0);
     assert(path_starts_with("/bar", "/bar/11") > 0);
     assert(path_starts_with("/bar", "/bar/") > 0);
     assert(path_starts_with("/bar", "/bar") > 0);
     assert(path_starts_with("/bar", "/bar1") == 0);
     assert(path_starts_with("/bar/", "/bar/11") > 0);
-    assert(path_starts_with("/bar/", "/bar") > 0);
-    assert(path_starts_with("/", "/bar/11") > 0);
 }
 
 
