@@ -42,3 +42,24 @@ int current_http_date(char *dst, size_t len) {
     format_http_date(&tv.tv_sec, dst, len);
     return 0;
 }
+
+int path_starts_with(const char* prefix, const char* path) {
+    int match_count;
+
+    if (path == NULL || prefix ==  NULL)
+        return 0;
+
+    match_count = 0;
+
+    while (*path != '\0' && *prefix != '\0' && *path == *prefix) {
+        match_count++;
+        path++;
+        prefix++;
+    }
+
+    if (*prefix == '\0'
+        && (*path == '\0' || *path == '/' || *(prefix-1) == '/'))
+        return match_count; 
+    else 
+        return 0;
+}

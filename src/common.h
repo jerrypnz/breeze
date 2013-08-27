@@ -24,7 +24,9 @@ void format_http_date(const time_t *time, char *dst, size_t len);
 
 int  parse_http_date(const char* str, time_t *time);
 
-int current_http_date(char *dst, size_t len);
+int  current_http_date(char *dst, size_t len);
+
+int  path_starts_with(const char *prefix, const char *path);
 
 
 
