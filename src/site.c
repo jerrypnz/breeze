@@ -1,10 +1,11 @@
+#include "common.h"
 #include "site.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
-static site_t     *find_site(site_conf_t *conf, const char *host);
+static site_t     *find_site(site_conf_t *conf, char *host);
 static location_t *find_location(site_t *site, const char *path);
 
 site_conf_t *site_conf_create() {
@@ -89,12 +90,30 @@ int site_destroy(site_t *site) {
 }
 
 int site_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
+    site_conf_t *conf;
+    site_t      *site;
+    location_t  *loc;
+
+    conf = (site_conf_t*) ctx->conf;
+    site = find_site(conf, req->host);
+    if (site == NULL) {
+        goto NOT_FOUND;
+    }
+    loc = find_location(site, req->path);
+    if (loc == NULL) {
+        goto NOT_FOUND;
+    }
+
+    ctx->conf = loc->handler_conf;
+    return loc->handler(req, resp, ctx);
+
+    NOT_FOUND:
     return response_send_status(resp, STATUS_NOT_FOUND);
 }
 
 int site_add_location(site_t *site, int type,
                       char *prefix_or_regex,
-                      handler_func *handler,
+                      handler_func handler,
                       void *handler_conf) {
     location_t  *loc = NULL, *pos;
     regex_t     *reg;
@@ -129,7 +148,7 @@ int site_add_location(site_t *site, int type,
             fprintf(stderr, "Error allocating memory for new location\n");
             return -1;
         }
-        if (regcomp(reg, prefix_or_regex, REG_EXTENDED) != 0) {
+        if (regcomp(reg, prefix_or_regex, REG_EXTENDED | REG_NOSUB) != 0) {
             fprintf(stderr, "Invalid regex: %s\n", prefix_or_regex);
             free(loc);
             return -1;
@@ -159,6 +178,44 @@ int site_add_location(site_t *site, int type,
     loc->next = pos->next;
     pos->next = loc;
     return 0;
+}
+
+
+static site_t *find_site(site_conf_t *conf, char *host) {
+    ENTRY item, *ret;
+
+    if (conf->site_size == 0) {
+        return NULL;
+    } else if (conf->site_size == 1) {
+        return conf->sites[0];
+    }
+
+    item.key = host;
+    if (hsearch_r(item, FIND, &ret, &conf->site_hash)) {
+        return (site_t*) ret->data;
+    } else {
+        return conf->sites[0];
+    }
+}
+
+static location_t *find_location(site_t *site, const char *path) {
+    location_t *loc = site->location_head->next;
+
+    while (loc != NULL) {
+        switch (loc->match_type) {
+        case URI_REGEX:
+            if (regexec(loc->uri.regex, path, 0, NULL, 0) == 0)
+                return loc;
+
+        case URI_PREFIX:
+            if (path_starts_with(loc->uri.prefix, path) > 0)
+                return loc;
+        }
+
+        loc = loc->next;
+    }
+
+    return NULL;
 }
 
 

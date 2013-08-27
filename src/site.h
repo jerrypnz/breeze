@@ -22,7 +22,7 @@ struct _location {
         regex_t  *regex;
     } uri;
     int                 match_type;
-    handler_func        *handler;
+    handler_func        handler;
     void                *handler_conf;
     struct _location    *next;
 };
@@ -63,7 +63,7 @@ int          site_destroy(site_t *site);
 
 int         site_add_location(site_t *site, int type,
                               char *prefix_or_regex,
-                              handler_func *handler,
+                              handler_func handler,
                               void      *handler_conf);
 
 #endif /* end of include guard: __LOCATION_H */
