@@ -55,6 +55,7 @@ typedef struct _site_conf {
 int         site_handler(request_t *req, response_t *resp, handler_ctx_t *ctx);
 
 site_conf_t *site_conf_create();
+site_conf_t *site_conf_parse(json_value *conf_obj);
 int          site_conf_destroy(site_conf_t *conf);
 int          site_conf_add_site(site_conf_t *conf, site_t *site);
 

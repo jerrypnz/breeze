@@ -1,0 +1,22 @@
+{
+    listen : "0.0.0.0:80",
+    daemonize : true,
+    logfile : "/var/log/breeze.log",
+    pidfile : "/var/run/breeze.pid",
+
+    sites : [{
+        host : "www.bar.com",
+        locations : [{
+            path: "/",
+            module: "static",
+            root: "/var/www/bar.com",
+            expires: "24h",
+            list_dir: true,
+            gzip: true
+        }, {
+            path: "~ .*\.php",
+            module: "fastcgi",
+            sock: "/var/run/php-fpm.sock"
+        }]
+    }]
+}

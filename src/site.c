@@ -1,5 +1,6 @@
 #include "common.h"
 #include "site.h"
+#include "json.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,10 @@ site_conf_t *site_conf_create() {
     }
 
     return conf;
+}
+
+site_conf_t *site_conf_parse(json_value *conf_obj) {
+    return NULL;
 }
 
 int site_conf_destroy(site_conf_t *conf) {
