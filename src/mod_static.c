@@ -479,7 +479,7 @@ int main(int argc, char** args) {
         return -1;
     }
     
-    server = server_create(8000, NULL);
+    server = server_create();
 
     if (server == NULL) {
         fprintf(stderr, "Error creating server\n");

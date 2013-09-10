@@ -29,18 +29,41 @@ static void _server_connection_handler(ioloop_t *loop,
                                        unsigned int events,
                                        void *args);
 
-server_t* server_create(char *configfile) {
-    server_t *server = NULL;
-    ioloop_t *ioloop = NULL;
-    json_value *json = NULL;
-    int    fd;
-    char   buf[10240];
-    ssize_t sz;
-    site_conf_t  *site_conf;
-    
+
+server_t* server_create() {
+    server_t *server;
+    ioloop_t *ioloop;
+
     server = (server_t*) calloc(1, sizeof(server_t));
     if (server == NULL) {
         perror("Error allocating memory for server");
+        return NULL;
+    }
+
+    ioloop = (ioloop_t*) ioloop_create(MAX_CONNECTIONS);
+    if (ioloop == NULL) {
+        fprintf(stderr, "Error creating ioloop");
+        return NULL;
+    }
+
+    server->addr = "127.0.0.1";
+    server->port = 8000;
+    server->ioloop = ioloop;
+    server->state = SERVER_INIT;
+    return server;
+}
+
+
+server_t* server_parse_conf(char *configfile) {
+    server_t *server = NULL;
+    json_value *json = NULL;
+    site_conf_t  *site_conf = NULL;
+    int    fd;
+    char   buf[10240];
+    ssize_t sz;
+    
+    server = server_create();
+    if (server == NULL) {
         return NULL;
     }
 
@@ -60,20 +83,12 @@ server_t* server_create(char *configfile) {
         goto error;
     }
 
-    ioloop = (ioloop_t*) ioloop_create(MAX_CONNECTIONS);
-    if (ioloop == NULL) {
-        fprintf(stderr, "Error creating ioloop\n");
-        goto error;
-    }
-
     site_conf = site_conf_parse(json);
     if (site_conf == NULL) {
         fprintf(stderr, "Error creating site conf");
         goto error;
     }
     
-    server->ioloop = ioloop;
-    server->state = SERVER_INIT;
     // This pointer is used for destroying the JSON value
     server->conf = json;
     server->handler = site_handler;
@@ -84,16 +99,16 @@ server_t* server_create(char *configfile) {
     return server;
 
     error:
-    if (ioloop != NULL) {
-        ioloop_destroy(ioloop);
-    }
     if (fd > 0) {
         close(fd);
     }
     if (json != NULL) {
         json_value_free(json);
     }
-    free(server);
+    if (site_conf != NULL) {
+        site_conf_destroy(site_conf);
+    }
+    server_destroy(server);
     return NULL;
 }
 
@@ -175,13 +190,9 @@ static int _server_init(server_t *server) {
 }
 
 static void _configure_server(server_t *server, json_value *conf_obj) {
-    unsigned short port;
     json_value *val;
-    char *addr, *name, *port_str;
+    char  *name, *port_str;
     int i;
-
-    port = 80;
-    addr = "127.0.0.1";
 
     for (i = 0; i < conf_obj->u.object.length; i++) {
         name = conf_obj->u.object.values[i].name;
@@ -191,9 +202,9 @@ static void _configure_server(server_t *server, json_value *conf_obj) {
             if (port_str != NULL) {
                 *port_str = '\0';
                 port_str++;
-                port = (unsigned short) atoi(port_str);
+                server->port = (unsigned short) atoi(port_str);
             }
-            addr = val->u.string.ptr;
+            server->addr = val->u.string.ptr;
         } else {
             fprintf(stderr, "[WARN] Unknown config command %s with type %d",
                     name, val->type);
