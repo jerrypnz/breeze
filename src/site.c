@@ -27,11 +27,44 @@ site_conf_t *site_conf_create() {
     return conf;
 }
 
-site_conf_t *site_conf_parse(json_value *conf_obj) {
-    return NULL;
+site_conf_t *site_conf_parse(json_value *sites_obj) {
+    site_conf_t *conf;
+    site_t      *site;
+    json_value  *val;
+    int i;
+
+    if (sites_obj->type != json_array) {
+        fprintf(stderr, "Config option 'sites' must be a JSON array\n");
+        return NULL;
+    }
+    conf = site_conf_create();
+    if (conf == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < sites_obj->u.array.length; i++) {
+        val = sites_obj->u.array.values[i];
+        if (val->type != json_object) {
+            fprintf(stderr, "The elements of 'sites' must be JSON objects\n");
+            site_conf_destroy(conf);
+            return NULL;
+        }
+        site = site_parse(val);
+        if (site == NULL) {
+            fprintf(stderr, "Error creating site\n");
+            site_conf_destroy(conf);
+            return NULL;
+        }
+        site_conf_add_site(conf, site);
+    }
+
+    return conf;
 }
 
 int site_conf_destroy(site_conf_t *conf) {
+    int i;
+    for (i = 0; i < conf->site_size; i++) {
+        site_destroy(conf->sites[i]);
+    }
     hdestroy_r(&conf->site_hash);
     free(conf);
     return 0;
@@ -79,6 +112,18 @@ site_t *site_create(const char* host) {
     }
 
     site->location_head = loc;
+    return site;
+}
+
+site_t *site_parse(json_value *site_obj) {
+    site_t  *site;
+
+    site = site_create(NULL);
+    if (site == NULL) {
+        return NULL;
+    }
+
+    // TODO Handle host, location settings..
     return site;
 }
 

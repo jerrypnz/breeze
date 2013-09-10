@@ -23,7 +23,7 @@
 
 
 static int _server_init(server_t *server);
-static void _configure_server(server_t *server, json_value *conf_obj);
+static int _configure_server(server_t *server, json_value *conf_obj);
 static void _server_connection_handler(ioloop_t *loop,
                                        int listen_fd,
                                        unsigned int events,
@@ -57,7 +57,6 @@ server_t* server_create() {
 server_t* server_parse_conf(char *configfile) {
     server_t *server = NULL;
     json_value *json = NULL;
-    site_conf_t  *site_conf = NULL;
     int    fd;
     char   buf[10240];
     ssize_t sz;
@@ -82,20 +81,16 @@ server_t* server_parse_conf(char *configfile) {
         fprintf(stderr, "Invalid conf: the root is not a JSON object\n");
         goto error;
     }
-
-    site_conf = site_conf_parse(json);
-    if (site_conf == NULL) {
-        fprintf(stderr, "Error creating site conf");
-        goto error;
-    }
     
     // This pointer is used for destroying the JSON value
     server->conf = json;
-    server->handler = site_handler;
-    server->handler_conf = site_conf;
     
-    _configure_server(server, json);
+    if (_configure_server(server, json) != 0) {
+        fprintf(stderr, "Error detected when configuring the server\n");
+        goto error;
+    }
     
+    close(fd);
     return server;
 
     error:
@@ -104,9 +99,6 @@ server_t* server_parse_conf(char *configfile) {
     }
     if (json != NULL) {
         json_value_free(json);
-    }
-    if (site_conf != NULL) {
-        site_conf_destroy(site_conf);
     }
     server_destroy(server);
     return NULL;
@@ -189,9 +181,10 @@ static int _server_init(server_t *server) {
     return 0;
 }
 
-static void _configure_server(server_t *server, json_value *conf_obj) {
+static int _configure_server(server_t *server, json_value *conf_obj) {
     json_value *val;
     char  *name, *port_str;
+    site_conf_t  *site_conf = NULL;
     int i;
 
     for (i = 0; i < conf_obj->u.object.length; i++) {
@@ -203,13 +196,30 @@ static void _configure_server(server_t *server, json_value *conf_obj) {
                 *port_str = '\0';
                 port_str++;
                 server->port = (unsigned short) atoi(port_str);
+            } else {
+                server->port = 80;
             }
             server->addr = val->u.string.ptr;
+        } else if(strcmp("sites", name) == 0) {
+            site_conf = site_conf_parse(val);
+            if (site_conf == NULL) {
+                fprintf(stderr, "Error creating site conf");
+                return -1;
+            }
         } else {
             fprintf(stderr, "[WARN] Unknown config command %s with type %d",
                     name, val->type);
         }
+
     }
+
+    if (site_conf == NULL) {
+        fprintf(stderr, "No site found\n");
+        return -1;
+    }
+    server->handler = site_handler;
+    server->handler_conf = site_conf;
+    return 0;
 }
 
 static void _server_connection_handler(ioloop_t *loop,
