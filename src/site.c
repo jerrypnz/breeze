@@ -103,7 +103,8 @@ site_t *site_create(const char* host) {
         return NULL;
     }
 
-    strncpy(site->host, host, MAX_HOST_LENGTH);
+    if (host != NULL)
+        strncpy(site->host, host, MAX_HOST_LENGTH);
     loc = (location_t*) calloc(1, sizeof(location_t));
     if (loc == NULL) {
         fprintf(stderr, "Error allocating memory for location\n");
@@ -117,13 +118,27 @@ site_t *site_create(const char* host) {
 
 site_t *site_parse(json_value *site_obj) {
     site_t  *site;
+    int i;
+    char       *name;
+    json_value *val;
 
     site = site_create(NULL);
     if (site == NULL) {
         return NULL;
     }
+    for (i = 0; i < site_obj->u.object.length; i++) {
+        name = site_obj->u.object.values[i].name;
+        val = site_obj->u.object.values[i].value;
+        if (strcmp("host", name) == 0 && val->type == json_string) {
+            strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
+        } else if(strcmp("locations", name) == 0) {
+            //TODO Module logic here
+        } else {
+            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
+                    name, val->type);
+        }
+    }
 
-    // TODO Handle host, location settings..
     return site;
 }
 

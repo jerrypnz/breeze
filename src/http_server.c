@@ -57,8 +57,10 @@ server_t* server_create() {
 server_t* server_parse_conf(char *configfile) {
     server_t *server = NULL;
     json_value *json = NULL;
+    json_settings settings = {0};
     int    fd;
     char   buf[10240];
+    char   error[128];
     ssize_t sz;
     
     server = server_create();
@@ -73,9 +75,9 @@ server_t* server_parse_conf(char *configfile) {
     }
     sz = read(fd, buf, 10240);
     
-    json = json_parse(buf, sz);
+    json = json_parse_ex(&settings, buf, sz, error);
     if (json == NULL) {
-        fprintf(stderr, "Error parsing JSON config file\n");
+        fprintf(stderr, "Error parsing JSON config file: %s\n", error);
         goto error;
     } else if (json->type != json_object) {
         fprintf(stderr, "Invalid conf: the root is not a JSON object\n");
@@ -207,7 +209,7 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
                 return -1;
             }
         } else {
-            fprintf(stderr, "[WARN] Unknown config command %s with type %d",
+            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
                     name, val->type);
         }
 
