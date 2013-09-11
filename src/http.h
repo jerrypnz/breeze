@@ -2,6 +2,7 @@
 #define __HTTP_H
 
 #include "common.h"
+#include "json.h"
 #include "ioloop.h"
 #include "iostream.h"
 #include <search.h>
@@ -86,7 +87,8 @@ int            connection_run(connection_t *conn);
 int            connection_finish_current_request(connection_t *conn);
 void           connection_run_handler(connection_t *conn, handler_func handler);
 
-server_t*      server_create(unsigned short port, char *confile);
+server_t*      server_create();
+server_t*      server_parse_conf(char *confile);
 int            server_destroy(server_t *server);
 int            server_start(server_t *server);
 int            server_stop(server_t *server);
@@ -233,13 +235,16 @@ typedef enum _server_state {
 } server_state;
 
 struct _server {
-    unsigned short  port;
     handler_func    handler;
     void            *handler_conf;
+    json_value      *conf;
 
     server_state    state;
     int             listen_fd;
     ioloop_t        *ioloop;
+
+    char            *addr;
+    unsigned short   port;
 };
 
 typedef enum _connection_state {

@@ -1,5 +1,6 @@
 #include "common.h"
 #include "site.h"
+#include "json.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,44 @@ site_conf_t *site_conf_create() {
     return conf;
 }
 
+site_conf_t *site_conf_parse(json_value *sites_obj) {
+    site_conf_t *conf;
+    site_t      *site;
+    json_value  *val;
+    int i;
+
+    if (sites_obj->type != json_array) {
+        fprintf(stderr, "Config option 'sites' must be a JSON array\n");
+        return NULL;
+    }
+    conf = site_conf_create();
+    if (conf == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < sites_obj->u.array.length; i++) {
+        val = sites_obj->u.array.values[i];
+        if (val->type != json_object) {
+            fprintf(stderr, "The elements of 'sites' must be JSON objects\n");
+            site_conf_destroy(conf);
+            return NULL;
+        }
+        site = site_parse(val);
+        if (site == NULL) {
+            fprintf(stderr, "Error creating site\n");
+            site_conf_destroy(conf);
+            return NULL;
+        }
+        site_conf_add_site(conf, site);
+    }
+
+    return conf;
+}
+
 int site_conf_destroy(site_conf_t *conf) {
+    int i;
+    for (i = 0; i < conf->site_size; i++) {
+        site_destroy(conf->sites[i]);
+    }
     hdestroy_r(&conf->site_hash);
     free(conf);
     return 0;
@@ -65,7 +103,8 @@ site_t *site_create(const char* host) {
         return NULL;
     }
 
-    strncpy(site->host, host, MAX_HOST_LENGTH);
+    if (host != NULL)
+        strncpy(site->host, host, MAX_HOST_LENGTH);
     loc = (location_t*) calloc(1, sizeof(location_t));
     if (loc == NULL) {
         fprintf(stderr, "Error allocating memory for location\n");
@@ -74,6 +113,32 @@ site_t *site_create(const char* host) {
     }
 
     site->location_head = loc;
+    return site;
+}
+
+site_t *site_parse(json_value *site_obj) {
+    site_t  *site;
+    int i;
+    char       *name;
+    json_value *val;
+
+    site = site_create(NULL);
+    if (site == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < site_obj->u.object.length; i++) {
+        name = site_obj->u.object.values[i].name;
+        val = site_obj->u.object.values[i].value;
+        if (strcmp("host", name) == 0 && val->type == json_string) {
+            strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
+        } else if(strcmp("locations", name) == 0) {
+            //TODO Module logic here
+        } else {
+            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
+                    name, val->type);
+        }
+    }
+
     return site;
 }
 

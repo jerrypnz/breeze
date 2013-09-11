@@ -54,7 +54,7 @@ int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
 
 int main(int argc, char** args) {
     server_t *server;
-    server = server_create(8000, NULL);
+    server = server_create();
 
     if (server == NULL) {
         fprintf(stderr, "Error creating server\n");
