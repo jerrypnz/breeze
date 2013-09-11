@@ -1,4 +1,4 @@
-#include "http.h"
+#include "mod.h"
 #include "common.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -58,9 +58,18 @@ static struct hsearch_data std_mime_type_hash;
  */
 static int show_hidden_file = 0;
 
-static int mod_static_init();
-static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int   mod_static_init();
+static void *mod_static_conf_create(json_value *conf_value);
+static int static_file_handle(request_t *req,
+                              response_t *resp,
+                              handler_ctx_t *ctx);
+static int static_file_write_content(request_t *req,
+                                     response_t *resp,
+                                     handler_ctx_t *ctx);
+static int static_file_cleanup(request_t *req,
+                               response_t *resp,
+                               handler_ctx_t *ctx);
+
 static int static_file_handle_error(response_t *resp, int fd);
 static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
@@ -73,6 +82,13 @@ static int static_file_listdir(response_t *resp, const char *path,
                                const char *realpath);
 static int dir_filter(const struct dirent *ent);
 
+/* Module descriptor */
+module_t mod_static = {
+    "static",
+    mod_static_init,
+    mod_static_conf_create,
+    static_file_handle
+};
 
 static int mod_static_init() {
     int i;
@@ -102,6 +118,11 @@ static int mod_static_init() {
         }
     }
     return 0;
+}
+
+static void *mod_static_conf_create(json_value *conf_value) {
+    // TODO Implement mod_static config parsing
+    return NULL;
 }
 
 static int try_open_file(const char *path, int *fdptr, struct stat *st) {
@@ -194,7 +215,8 @@ static int dir_filter(const struct dirent *ent) {
     return 1;
 }
 
-int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
+static int static_file_handle(request_t *req, response_t *resp,
+                              handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
     int               fd = -1, res, i, use_301;

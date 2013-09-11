@@ -20,13 +20,12 @@ test_%: test_%.o %.o common.o json.o stacktrace.o
 test_iostream: ioloop.o buffer.o
 test_site: http.o ioloop.o iostream.o buffer.o http_connection.o
 test_http: stacktrace.o iostream.o ioloop.o buffer.o http_connection.o
-test_http_server: http_connection.o iostream.o ioloop.o buffer.o http.o site.o
-test_conf: http_connection.o iostream.o ioloop.o buffer.o http.o site.o
+test_http_server: http_connection.o iostream.o ioloop.o buffer.o http.o site.o mod.o mod_static.o
 
 mod_static: common.o json.o http_connection.o iostream.o ioloop.o buffer.o http.o site.o http_server.o mod_static.o
 	$(CC) $(LDFLAGS) $^ -o $@	
 
-conf_test: common.o json.o http_connection.o iostream.o ioloop.o buffer.o http.o site.o http_server.o conf_test.o site.o stacktrace.o
+conf_test: common.o json.o http_connection.o iostream.o ioloop.o buffer.o http.o site.o http_server.o conf_test.o site.o stacktrace.o mod.o mod_static.o
 	$(CC) $(LDFLAGS) $^ -o $@	
 
 .PHONY: clean
