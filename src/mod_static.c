@@ -491,36 +491,36 @@ static int static_file_handle_error(response_t *resp, int fd) {
     }
 }
 
-int main(int argc, char** args) {
-    server_t *server;
-    mod_static_conf_t conf;
-    bzero(&conf, sizeof(mod_static_conf_t));
-
-    if (mod_static_init() < 0) {
-        fprintf(stderr, "Error initializing mod_static\n");
-        return -1;
-    }
-    
-    server = server_create();
-
-    if (server == NULL) {
-        fprintf(stderr, "Error creating server\n");
-        return -1;
-    }
-
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s root_dir", args[0]);
-        return -2;
-    }
-
-    strncpy(conf.root, args[1], 1024);
-    conf.expire_hours = 24;
-    conf.enable_list_dir = 1;
-    conf.index[0] = "index.html";
-    conf.index[1] = "index.htm";
-    server->handler = static_file_handle;
-    server->handler_conf = &conf;
-    server_start(server);
-    return 0;
-}
-
+//int main(int argc, char** args) {
+//    server_t *server;
+//    mod_static_conf_t conf;
+//    bzero(&conf, sizeof(mod_static_conf_t));
+//
+//    if (mod_static_init() < 0) {
+//        fprintf(stderr, "Error initializing mod_static\n");
+//        return -1;
+//    }
+//    
+//    server = server_create();
+//
+//    if (server == NULL) {
+//        fprintf(stderr, "Error creating server\n");
+//        return -1;
+//    }
+//
+//    if (argc < 2) {
+//        fprintf(stderr, "Usage: %s root_dir", args[0]);
+//        return -2;
+//    }
+//
+//    strncpy(conf.root, args[1], 1024);
+//    conf.expire_hours = 24;
+//    conf.enable_list_dir = 1;
+//    conf.index[0] = "index.html";
+//    conf.index[1] = "index.htm";
+//    server->handler = static_file_handle;
+//    server->handler_conf = &conf;
+//    server_start(server);
+//    return 0;
+//}
+//
