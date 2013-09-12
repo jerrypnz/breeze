@@ -10,7 +10,6 @@
 static site_t     *find_site(site_conf_t *conf, char *host);
 static location_t *find_location(site_t *site, const char *path);
 static int         parse_locations(site_t *site, json_value *location_objs);
-static const char *detect_module(json_value *loc_obj);
 
 site_conf_t *site_conf_create() {
     site_conf_t  *conf;
@@ -126,41 +125,35 @@ site_t *site_create(const char* host) {
 
 site_t *site_parse(json_value *site_obj) {
     site_t  *site;
-    int i;
-    char       *name;
-    json_value *val;
+    DECLARE_CONF_VARIABLES()
 
     site = site_create(NULL);
     if (site == NULL) {
         return NULL;
     }
-    for (i = 0; i < site_obj->u.object.length; i++) {
-        name = site_obj->u.object.values[i].name;
-        val = site_obj->u.object.values[i].value;
-        if (strcmp("host", name) == 0 && val->type == json_string) {
-            strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
-        } else if(strcmp("locations", name) == 0 && val->type ==  json_array) {
-            if (parse_locations(site, val) != 0) {
-                fprintf(stderr, "Error parsing locations\n");
-                site_destroy(site);
-                return NULL;
-            }
-        } else {
-            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
-                    name, val->type);
+
+    BEGIN_CONF_HANDLE(site_obj)
+    ON_CONF_OPTION("host", json_string) {
+        strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
+    }
+    ON_CONF_OPTION("locations", json_array) {
+        if (parse_locations(site, val) != 0) {
+            fprintf(stderr, "Error parsing locations\n");
+            site_destroy(site);
+            return NULL;
         }
     }
+    END_CONF_HANDLE()
 
     return site;
 }
 
 int parse_locations(site_t *site, json_value *location_objs) {
     int        i, j;
-    location_t *loc;
     void       *handler_conf;
     const char *mod_name = NULL;
     char       *name, *path = NULL;
-    int        is_regex = 0;
+    int        type = URI_PREFIX;
     json_value *val, *inner_val;
     module_t   *mod;
     
@@ -178,29 +171,25 @@ int parse_locations(site_t *site, json_value *location_objs) {
                 mod_name = inner_val->u.string.ptr;
             } else if (strcmp("path", name) == 0 && inner_val->type == json_string) {
                 path = inner_val->u.string.ptr;
-                //TODO Handle path
+                if (path[0] == '~' && path[1] == ' ') {
+                    type = URI_REGEX;
+                    do {path++;} while (*path == ' ' || *path == '\t');
+                }
             }
         }
         
-        mod_name = detect_module(val);
-        if (mod_name == NULL) {
-            fprintf(stderr, "Invalid location: no module found\n");
-            return NULL;
-        }
         mod = find_module(mod_name);
         if (mod == NULL) {
             fprintf(stderr, "Unknown mod: %s\n", mod_name);
+            return -1;
         }
         handler_conf = mod->create(val);
-        
+        if (site_add_location(site, type, path, mod->handler, handler_conf) != 0) {
+            fprintf(stderr, "Error adding location %s to site\n", path);
+            return -1;
+        }
     }
     return 0;
-}
-
-static const char *detect_module(json_value *loc_obj) {
-    int i;
-    
-    return NULL;
 }
 
 int site_destroy(site_t *site) {

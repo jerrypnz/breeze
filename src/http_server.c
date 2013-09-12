@@ -101,6 +101,7 @@ server_t* server_parse_conf(char *configfile) {
     }
     if (json != NULL) {
         json_value_free(json);
+        server->conf = NULL;
     }
     server_destroy(server);
     return NULL;
@@ -108,7 +109,8 @@ server_t* server_parse_conf(char *configfile) {
 
 int server_destroy(server_t *server) {
     ioloop_destroy(server->ioloop);
-    free(server->conf);
+    if (server->conf != NULL)
+        json_value_free(server->conf);
     free(server);
     return 0;
 }
@@ -205,7 +207,7 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
         } else if(strcmp("sites", name) == 0) {
             site_conf = site_conf_parse(val);
             if (site_conf == NULL) {
-                fprintf(stderr, "Error creating site conf");
+                fprintf(stderr, "Error creating site conf\n");
                 return -1;
             }
         } else {
