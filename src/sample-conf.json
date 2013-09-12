@@ -10,27 +10,19 @@
             "path": "/",
             "module": "static",
             "root": "/var/www/bar.com",
-            "expires": "24h",
+            "expires": "480",
             "list_dir": true,
             "gzip": true
-        }, {
-            "path": "~ .*\.php",
-            "module": "fastcgi",
-            "sock": "/var/run/php-fpm.sock"
         }]
     }, {
         "host" : "jerrypeng.me",
         "locations" : [{
-            "path": "/",
+            "path": "~ .*\\.(png|jpg|jpeg|gif|css)",
             "module": "static",
             "root": "/var/www/jerrypeng.me",
-            "expires": "24h",
+            "expires": "24",
             "list_dir": true,
             "gzip": true
-        }, {
-            "path": "~ .*\.php",
-            "module": "fastcgi",
-            "sock": "/var/run/php-fpm.sock"
         }]
     }]
 }

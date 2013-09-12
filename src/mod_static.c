@@ -1,4 +1,4 @@
-#include "http.h"
+#include "mod.h"
 #include "common.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -14,8 +14,8 @@
 #define MAX_EXPIRE_HOURS = 87600
 
 typedef struct _mod_static_conf {
-    char root[1024];
-    char *index[10];
+    char *root;
+    char *index;
     int  enable_list_dir;
     int  show_hidden_file;
     int  enable_etag;
@@ -58,9 +58,19 @@ static struct hsearch_data std_mime_type_hash;
  */
 static int show_hidden_file = 0;
 
-static int mod_static_init();
-static int static_file_write_content(request_t *req, response_t *resp, handler_ctx_t *ctx);
-static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx);
+static int   mod_static_init();
+static void *mod_static_conf_create(json_value *conf_value);
+static void  mod_static_conf_destroy(void *conf);
+static int static_file_handle(request_t *req,
+                              response_t *resp,
+                              handler_ctx_t *ctx);
+static int static_file_write_content(request_t *req,
+                                     response_t *resp,
+                                     handler_ctx_t *ctx);
+static int static_file_cleanup(request_t *req,
+                               response_t *resp,
+                               handler_ctx_t *ctx);
+
 static int static_file_handle_error(response_t *resp, int fd);
 static void handle_content_type(response_t *resp, const char *filepath);
 static int handle_cache(request_t *req, response_t *resp,
@@ -73,6 +83,14 @@ static int static_file_listdir(response_t *resp, const char *path,
                                const char *realpath);
 static int dir_filter(const struct dirent *ent);
 
+/* Module descriptor */
+module_t mod_static = {
+    "static",
+    mod_static_init,
+    mod_static_conf_create,
+    mod_static_conf_destroy,
+    static_file_handle
+};
 
 static int mod_static_init() {
     int i;
@@ -102,6 +120,30 @@ static int mod_static_init() {
         }
     }
     return 0;
+}
+
+static void *mod_static_conf_create(json_value *conf_value) {
+    mod_static_conf_t *conf = NULL;
+    DECLARE_CONF_VARIABLES()
+
+    conf = (mod_static_conf_t*) calloc(1, sizeof(mod_static_conf_t));
+    if (conf == NULL) {
+        return NULL;
+    }
+
+    BEGIN_CONF_HANDLE(conf_value)
+    ON_STRING_CONF("root", conf->root)
+    ON_STRING_CONF("index", conf->index)
+    ON_BOOLEAN_CONF("list_dir", conf->enable_list_dir)
+    ON_INTEGER_CONF("expires", conf->expire_hours)
+    ON_BOOLEAN_CONF("etag", conf->enable_etag)
+    ON_BOOLEAN_CONF("range_request", conf->enable_range_req)
+    END_CONF_HANDLE()
+    return conf;
+}
+
+static void  mod_static_conf_destroy(void *conf) {
+    free(conf);
 }
 
 static int try_open_file(const char *path, int *fdptr, struct stat *st) {
@@ -194,10 +236,11 @@ static int dir_filter(const struct dirent *ent) {
     return 1;
 }
 
-int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
+static int static_file_handle(request_t *req, response_t *resp,
+                              handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
-    int               fd = -1, res, i, use_301;
+    int               fd = -1, res, use_301;
     struct stat       st;
     size_t            len, pathlen, filesize, fileoffset;
     ctx_state_t       val;
@@ -225,11 +268,14 @@ int static_file_handle(request_t *req, response_t *resp, handler_ctx_t *ctx) {
             pathlen++;
             use_301 = 1;
         }
-        for (i = 0; i < 10 && res != 0 && conf->index[i] != NULL; i++) {
-            path[pathlen] = '\0';
-            strncat(path, conf->index[i], 2048 - pathlen);
-            res = try_open_file(path, &fd, &st);
-        }
+        //for (i = 0; i < 10 && res != 0 && conf->index[i] != NULL; i++) {
+        //    path[pathlen] = '\0';
+        //    strncat(path, conf->index[i], 2048 - pathlen);
+        //    res = try_open_file(path, &fd, &st);
+        //}
+        path[pathlen] = '\0';
+        strncat(path, conf->index, 2048 - pathlen);
+        res = try_open_file(path, &fd, &st);
         path[pathlen] = '\0';
         if (res != 0) {
             if (conf->enable_list_dir) {
@@ -469,36 +515,36 @@ static int static_file_handle_error(response_t *resp, int fd) {
     }
 }
 
-int main(int argc, char** args) {
-    server_t *server;
-    mod_static_conf_t conf;
-    bzero(&conf, sizeof(mod_static_conf_t));
-
-    if (mod_static_init() < 0) {
-        fprintf(stderr, "Error initializing mod_static\n");
-        return -1;
-    }
-    
-    server = server_create();
-
-    if (server == NULL) {
-        fprintf(stderr, "Error creating server\n");
-        return -1;
-    }
-
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s root_dir", args[0]);
-        return -2;
-    }
-
-    strncpy(conf.root, args[1], 1024);
-    conf.expire_hours = 24;
-    conf.enable_list_dir = 1;
-    conf.index[0] = "index.html";
-    conf.index[1] = "index.htm";
-    server->handler = static_file_handle;
-    server->handler_conf = &conf;
-    server_start(server);
-    return 0;
-}
-
+//int main(int argc, char** args) {
+//    server_t *server;
+//    mod_static_conf_t conf;
+//    bzero(&conf, sizeof(mod_static_conf_t));
+//
+//    if (mod_static_init() < 0) {
+//        fprintf(stderr, "Error initializing mod_static\n");
+//        return -1;
+//    }
+//    
+//    server = server_create();
+//
+//    if (server == NULL) {
+//        fprintf(stderr, "Error creating server\n");
+//        return -1;
+//    }
+//
+//    if (argc < 2) {
+//        fprintf(stderr, "Usage: %s root_dir", args[0]);
+//        return -2;
+//    }
+//
+//    strncpy(conf.root, args[1], 1024);
+//    conf.expire_hours = 24;
+//    conf.enable_list_dir = 1;
+//    conf.index[0] = "index.html";
+//    conf.index[1] = "index.htm";
+//    server->handler = static_file_handle;
+//    server->handler_conf = &conf;
+//    server_start(server);
+//    return 0;
+//}
+//

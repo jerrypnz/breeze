@@ -1,4 +1,5 @@
 #include "common.h"
+#include "mod.h"
 #include "site.h"
 #include "json.h"
 #include <stdio.h>
@@ -8,10 +9,15 @@
 
 static site_t     *find_site(site_conf_t *conf, char *host);
 static location_t *find_location(site_t *site, const char *path);
+static int         parse_locations(site_t *site, json_value *location_objs);
 
 site_conf_t *site_conf_create() {
     site_conf_t  *conf;
 
+    if (init_modules() != 0) {
+        return NULL;
+    }
+    
     conf = (site_conf_t*) calloc(1, sizeof(site_conf_t));
     if (conf == NULL) {
         fprintf(stderr, "Error allocating memory for site configuration");
@@ -23,7 +29,7 @@ site_conf_t *site_conf_create() {
         free(conf);
         return NULL;
     }
-
+    
     return conf;
 }
 
@@ -105,6 +111,7 @@ site_t *site_create(const char* host) {
 
     if (host != NULL)
         strncpy(site->host, host, MAX_HOST_LENGTH);
+    
     loc = (location_t*) calloc(1, sizeof(location_t));
     if (loc == NULL) {
         fprintf(stderr, "Error allocating memory for location\n");
@@ -118,28 +125,71 @@ site_t *site_create(const char* host) {
 
 site_t *site_parse(json_value *site_obj) {
     site_t  *site;
-    int i;
-    char       *name;
-    json_value *val;
+    DECLARE_CONF_VARIABLES()
 
     site = site_create(NULL);
     if (site == NULL) {
         return NULL;
     }
-    for (i = 0; i < site_obj->u.object.length; i++) {
-        name = site_obj->u.object.values[i].name;
-        val = site_obj->u.object.values[i].value;
-        if (strcmp("host", name) == 0 && val->type == json_string) {
-            strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
-        } else if(strcmp("locations", name) == 0) {
-            //TODO Module logic here
-        } else {
-            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
-                    name, val->type);
+
+    BEGIN_CONF_HANDLE(site_obj)
+    ON_CONF_OPTION("host", json_string) {
+        strncpy(site->host, val->u.string.ptr, MAX_HOST_LENGTH);
+    }
+    ON_CONF_OPTION("locations", json_array) {
+        if (parse_locations(site, val) != 0) {
+            fprintf(stderr, "Error parsing locations\n");
+            site_destroy(site);
+            return NULL;
         }
     }
+    END_CONF_HANDLE()
 
     return site;
+}
+
+int parse_locations(site_t *site, json_value *location_objs) {
+    int        i, j;
+    void       *handler_conf;
+    const char *mod_name = NULL;
+    char       *name, *path = NULL;
+    int        type = URI_PREFIX;
+    json_value *val, *inner_val;
+    module_t   *mod;
+    
+    for (i = 0; i < location_objs->u.array.length; i++) {
+        val = location_objs->u.array.values[i];
+        if (val->type != json_object) {
+            fprintf(stderr, "The elements of 'locations' must be JSON objects\n");
+            return -1;
+        }
+
+        for (j = 0; j < val->u.object.length; j++) {
+            name = val->u.object.values[j].name;
+            inner_val = val->u.object.values[j].value;
+            if (strcmp("module", name) == 0 && inner_val->type == json_string) {
+                mod_name = inner_val->u.string.ptr;
+            } else if (strcmp("path", name) == 0 && inner_val->type == json_string) {
+                path = inner_val->u.string.ptr;
+                if (path[0] == '~' && path[1] == ' ') {
+                    type = URI_REGEX;
+                    do {path++;} while (*path == ' ' || *path == '\t');
+                }
+            }
+        }
+        
+        mod = find_module(mod_name);
+        if (mod == NULL) {
+            fprintf(stderr, "Unknown mod: %s\n", mod_name);
+            return -1;
+        }
+        handler_conf = mod->create(val);
+        if (site_add_location(site, type, path, mod->handler, handler_conf) != 0) {
+            fprintf(stderr, "Error adding location %s to site\n", path);
+            return -1;
+        }
+    }
+    return 0;
 }
 
 int site_destroy(site_t *site) {
