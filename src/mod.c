@@ -1,9 +1,8 @@
 #include "mod.h"
+#include "mod_static.h"
 #include "http.h"
 #include <string.h>
 #include <stdio.h>
-
-extern module_t mod_static;
 
 static module_t *modules[] = {
     &mod_static

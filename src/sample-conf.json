@@ -1,17 +1,17 @@
 {
-    "listen" : "0.0.0.0:80",
+    "listen" : "0.0.0.0:8000",
     "daemonize" : true,
     "logfile" : "/var/log/breeze.log",
     "pidfile" : "/var/run/breeze.pid",
 
     "sites" : [{
-        "host" : "www.bar.com",
+        "host" : "localhost",
         "locations" : [{
             "path": "/",
             "module": "static",
-            "root": "/var/www/bar.com",
+            "root": "/home/jerry/Documents/wiki",
             "expires": "480",
-            "list_dir": true,
+            "list_dir": false,
             "gzip": true
         }]
     }, {
@@ -19,9 +19,9 @@
         "locations" : [{
             "path": "~ .*\\.(png|jpg|jpeg|gif|css)",
             "module": "static",
-            "root": "/var/www/jerrypeng.me",
+            "root": "/home/jerry/Documents/wiki",
             "expires": "24",
-            "list_dir": true,
+            "list_dir": false,
             "gzip": true
         }]
     }]

@@ -3,3 +3,4 @@ src/*.o
 src/test_*
 src/mod_static
 src/conf_test
+src/breeze
