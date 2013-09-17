@@ -1,4 +1,5 @@
 #include "mod.h"
+#include "mod_static.h"
 #include "common.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -12,19 +13,6 @@
 #include <dirent.h>
 
 #define MAX_EXPIRE_HOURS = 87600
-
-typedef struct _mod_static_conf {
-    char *root;
-    char *index;
-    int  enable_list_dir;
-    int  show_hidden_file;
-    int  enable_etag;
-    int  enable_range_req;
-
-    // -1 means not set expires header; other means
-    // the expiration time (in hours)
-    int  expire_hours;
-} mod_static_conf_t;
 
 #define FILE_TYPE_COUNT 10
 
@@ -58,12 +46,9 @@ static struct hsearch_data std_mime_type_hash;
  */
 static int show_hidden_file = 0;
 
-static int   mod_static_init();
 static void *mod_static_conf_create(json_value *conf_value);
 static void  mod_static_conf_destroy(void *conf);
-static int static_file_handle(request_t *req,
-                              response_t *resp,
-                              handler_ctx_t *ctx);
+
 static int static_file_write_content(request_t *req,
                                      response_t *resp,
                                      handler_ctx_t *ctx);
@@ -92,7 +77,7 @@ module_t mod_static = {
     static_file_handle
 };
 
-static int mod_static_init() {
+int mod_static_init() {
     int i;
     int j;
     size_t size;
@@ -236,8 +221,8 @@ static int dir_filter(const struct dirent *ent) {
     return 1;
 }
 
-static int static_file_handle(request_t *req, response_t *resp,
-                              handler_ctx_t *ctx) {
+int static_file_handle(request_t *req, response_t *resp,
+                       handler_ctx_t *ctx) {
     mod_static_conf_t *conf;
     char              path[2048];
     int               fd = -1, res, use_301;
@@ -515,36 +500,4 @@ static int static_file_handle_error(response_t *resp, int fd) {
     }
 }
 
-//int main(int argc, char** args) {
-//    server_t *server;
-//    mod_static_conf_t conf;
-//    bzero(&conf, sizeof(mod_static_conf_t));
-//
-//    if (mod_static_init() < 0) {
-//        fprintf(stderr, "Error initializing mod_static\n");
-//        return -1;
-//    }
-//    
-//    server = server_create();
-//
-//    if (server == NULL) {
-//        fprintf(stderr, "Error creating server\n");
-//        return -1;
-//    }
-//
-//    if (argc < 2) {
-//        fprintf(stderr, "Usage: %s root_dir", args[0]);
-//        return -2;
-//    }
-//
-//    strncpy(conf.root, args[1], 1024);
-//    conf.expire_hours = 24;
-//    conf.enable_list_dir = 1;
-//    conf.index[0] = "index.html";
-//    conf.index[1] = "index.htm";
-//    server->handler = static_file_handle;
-//    server->handler_conf = &conf;
-//    server_start(server);
-//    return 0;
-//}
-//
+
