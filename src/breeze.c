@@ -133,7 +133,7 @@ static server_t *create_simple_server(opt_t *opt) {
    conf.expire_hours = 24;
    conf.enable_list_dir = 1;
    conf.index = "index.html";
-   if (opt->port >= 0) {
+   if (opt->port > 0) {
        server->port = opt->port;
    }
    server->handler = static_file_handle;
