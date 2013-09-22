@@ -187,7 +187,7 @@ static int static_file_listdir(response_t *resp, const char *path,
     }
     resp->status = STATUS_OK;
     resp->connection = CONN_CLOSE;
-    response_set_header(resp, "Content-Type", "text/html");
+    response_set_header(resp, "Content-Type", "text/html; charset=UTF-8");
     response_send_headers(resp, NULL);
     pos += snprintf(buf, 2048, listdir_header, path, path);
     for (i = 0; i < ent_len; i++) {
