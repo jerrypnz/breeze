@@ -64,7 +64,7 @@ Run the following command in `src` directory:
 This mode is activated with the `-r` option. When activated, `breeze`
 will not read config file. Instead, breeze will setup a simple server
 serving content in the `root_dir`. In this mode, the directory listing
-feature is enabled. Therefor this is a perfect replacement of Python
+feature is enabled. Therefore this is a perfect replacement of Python
 SimpleHTTPServer. Use `-p` to specify the port, by default `8000` is
 used.
 
