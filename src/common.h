@@ -53,6 +53,6 @@ int  current_http_date(char *dst, size_t len);
 
 int  path_starts_with(const char *prefix, const char *path);
 
-
+char* url_decode(char *dst, const char *src);
 
 #endif /* end of include guard: __COMMON_H */

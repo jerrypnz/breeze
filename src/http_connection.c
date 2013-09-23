@@ -108,6 +108,12 @@ static void _on_http_header_data(iostream_t *stream, void *data, size_t len) {
         return;
     }
 
+    // URL Decode
+    url_decode(req->path, req->path);
+    if (req->query_str != NULL) {
+        url_decode(req->query_str, req->query_str);   
+    }
+
     // Handle HTTP keep-alive
     if (req->version < HTTP_VERSION_1_1 && req->connection != CONN_KEEP_ALIVE) {
         // For HTTP/1.0, default behaviour is not keep-alive unless

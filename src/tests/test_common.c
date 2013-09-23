@@ -1,4 +1,5 @@
 #include "common.h"
+#include "string.h"
 #include <assert.h>
 #include <stdio.h>
 
@@ -28,9 +29,20 @@ void test_path_starts_with() {
     assert(path_starts_with("/bar/", "/bar/11") > 0);
 }
 
+void test_url_decode() {
+    char buf[20];
+    url_decode(buf, "/foo%20bar");
+    printf("URL decoded: %s", buf);
+    assert(strcmp("/foo bar", buf) == 0);
+    url_decode(buf, "/%E4%B8%AD%E5%9B%BD%E4%BA%BA");
+    printf("URL decoded: %s", buf);
+    assert(strcmp("/中国人", buf) == 0);
+}
+
 
 int main(int argc, char *argv[]) {
     test_date_functions();
     test_path_starts_with();
+    test_url_decode();
     return 0;
 }
