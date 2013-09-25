@@ -51,6 +51,7 @@ server_t* server_create() {
     server->port = 8000;
     server->ioloop = ioloop;
     server->state = SERVER_INIT;
+    server->loglevel = INFO;
     return server;
 }
 
@@ -117,6 +118,7 @@ int server_destroy(server_t *server) {
 }
 
 int server_start(server_t *server) {
+    configure_log(server->loglevel, server->logfile, !server->daemonize);
     if (_server_init(server) < 0) {
         error("Error initializing server");
         return -1;
@@ -191,6 +193,7 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
     char  *name, *port_str;
     site_conf_t  *site_conf = NULL;
     int i;
+    int lvl = INFO;
 
     for (i = 0; i < conf_obj->u.object.length; i++) {
         name = conf_obj->u.object.values[i].name;
@@ -211,11 +214,27 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
                 error("Error creating site conf");
                 return -1;
             }
-        } else if(strcmp("logfile", name) == 0) {
-            
+        } else if(strcmp("logfile", name) == 0 && val->type == json_string) {
+            server->logfile = val->u.string.ptr;
+        } else if(strcmp("daemonize", name) == 0 && val->type == json_boolean) {
+            server->daemonize = val->u.boolean;
+        } else if(strcmp("pidfile", name) == 0 && val->type == json_string) {
+            server->pidfile = val->u.string.ptr;
+        } else if(strcmp("loglevel", name) == 0 && val->type == json_string) {
+            if (strcasecmp("debug", val->u.string.ptr) == 0) {
+                lvl = DEBUG;
+            } else if(strcasecmp("info", val->u.string.ptr) == 0) {
+                lvl = INFO;
+            } else if(strcasecmp("warn", val->u.string.ptr) == 0) {
+                lvl = WARN;
+            } else if(strcasecmp("error", val->u.string.ptr) == 0) {
+                lvl = ERROR;
+            } else {
+                warn("Unknown log level: %s", val->u.string.ptr);
+            }
+            server->loglevel = lvl;
         } else {
-            error("[WARN] Unknown config command %s with type %d",
-                    name, val->type);
+            warn("Unknown config command %s with type %d", name, val->type);
         }
 
     }

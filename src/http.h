@@ -238,6 +238,11 @@ struct _server {
     handler_func    handler;
     void            *handler_conf;
     json_value      *conf;
+    
+    int             daemonize;
+    char            *logfile;
+    char            *pidfile;
+    int             loglevel;
 
     server_state    state;
     int             listen_fd;

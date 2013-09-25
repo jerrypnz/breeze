@@ -41,7 +41,8 @@ enum _return_status {
 #define ON_BOOLEAN_CONF(expected_name, var)      \
     ON_CONF_OPTION(expected_name, json_boolean) { var = val->u.boolean; }
 
-#define END_CONF_HANDLE() else {error("[WARN]Unknown config option %s with type %d", name, val->type); } }
+#define END_CONF_HANDLE()                                               \
+    else {warn("Unknown config option %s with type %d", name, val->type); } }
 
 inline void strlowercase(const char *src, char *dst, size_t n);
 
