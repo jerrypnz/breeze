@@ -1,22 +1,23 @@
 #include "common.h"
-#include "string.h"
+#include "log.h"
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 void test_date_functions() {
     char buf[50];
     time_t time;
     
     assert(current_http_date(buf, 50) == 0);
-    printf("Current time in HTTP format: %s\n", buf);
+    info("Current time in HTTP format: %s", buf);
 
     assert(parse_http_date(buf, &time) == 0);
-    printf("Current time in seconds: %ld\n", time);
+    info("Current time in seconds: %ld", time);
 
     time += 81;
     
     format_http_date(&time, buf, 50);
-    printf("Current time in HTTP format(add 81 secs): %s\n", buf);
+    info("Current time in HTTP format(add 81 secs): %s", buf);
 }
 
 void test_path_starts_with() {
@@ -32,10 +33,10 @@ void test_path_starts_with() {
 void test_url_decode() {
     char buf[20];
     url_decode(buf, "/foo%20bar");
-    printf("URL decoded: %s", buf);
+    info("URL decoded: %s", buf);
     assert(strcmp("/foo bar", buf) == 0);
     url_decode(buf, "/%E4%B8%AD%E5%9B%BD%E4%BA%BA");
-    printf("URL decoded: %s", buf);
+    info("URL decoded: %s", buf);
     assert(strcmp("/中国人", buf) == 0);
 }
 

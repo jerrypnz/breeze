@@ -1,5 +1,6 @@
 #include "site.h"
 #include "stacktrace.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,6 +219,6 @@ int main(int argc, char *argv[]) {
     test_add_location();
     test_handler_single_site();
     test_handler_multi_site();
-    printf("All tests finished.\n");
+    info("All tests finished.");
     return 0;
 }

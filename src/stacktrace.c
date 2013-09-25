@@ -1,4 +1,5 @@
 #include "common.h"
+#include "log.h"
 #include "stacktrace.h"
 #include <execinfo.h>
 #include <signal.h>
@@ -14,7 +15,7 @@ static void stacktrace_handler(int sig) {
 
     depth = backtrace(trace, MAX_TRACE_DEPTH);
 
-    fprintf(stderr, "Error captured. Signal: %s\n", strsignal(sig));
+    error("Error captured. Signal: %s", strsignal(sig));
     backtrace_symbols_fd(trace, depth, 2);
     exit(1);
 }

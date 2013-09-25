@@ -14,7 +14,7 @@ all: $(executables)
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test_%: test_%.o %.o common.o json.o stacktrace.o
+test_%: test_%.o %.o common.o json.o stacktrace.o log.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 test_iostream: ioloop.o buffer.o

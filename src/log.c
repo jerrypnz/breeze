@@ -24,7 +24,7 @@ int configure_log(int lvl, const char* file, int use_console) {
     if (file != NULL) {
         stream = fopen(file, "a");
         if (stream == NULL) {
-            perror("Error opening log file");
+            error("Error opening log file");
             res = 1;
         } else {
             log_stream = stream;
@@ -66,7 +66,7 @@ void logging(int lvl, const char *file, const int line, const char *fmt, ...) {
         if (lvl >= WARN) {
             fputs(buffer, stderr);
         } else {
-            puts(buffer);
+            fputs(buffer, stdout);
         }
     }
 

@@ -1,4 +1,5 @@
 #include "http.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,21 +11,21 @@ char* msg = "hello";
 void dump_request(request_t *req) {
     int i;
 
-    printf("--------- Parser State -----------------------\n");
-    printf("Method: %s\n", req->method);
-    printf("Path: %s\n", req->path);
-    printf("Query String: %s\n", req->query_str);
-    printf("HTTP Version: %d\n", req->version);
-    printf("Header count: %zu\n", req->header_count);
-    printf("Connection: %d\n", req->connection);
-    printf("Headers: \n");
-    printf("------------\n");
+    info("--------- Parser State -----------------------");
+    info("Method: %s", req->method);
+    info("Path: %s", req->path);
+    info("Query String: %s", req->query_str);
+    info("HTTP Version: %d", req->version);
+    info("Header count: %zu", req->header_count);
+    info("Connection: %d", req->connection);
+    info("Headers: ");
+    info("------------");
 
     for (i = 0; i < req->header_count; i++) {
-        printf("\r%s: %s\n", req->headers[i].name, req->headers[i].value);
+        info("\r%s: %s", req->headers[i].name, req->headers[i].value);
     }
 
-    printf("----------------------------------------------\n");
+    info("----------------------------------------------");
 }
 
 int foobar_handler(request_t *req, response_t *resp, handler_ctx_t *ctx) {
@@ -57,7 +58,7 @@ int main(int argc, char** args) {
     server = server_create();
 
     if (server == NULL) {
-        fprintf(stderr, "Error creating server\n");
+        error("Error creating server");
         return -1;
     }
 

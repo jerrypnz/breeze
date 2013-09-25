@@ -1,6 +1,7 @@
 #include "mod.h"
 #include "mod_static.h"
 #include "http.h"
+#include "log.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -39,9 +40,9 @@ int init_modules() {
     for (i = 0; i < size; i++) {
         mod = modules[i];
         if (mod->init != NULL) {
-            printf("Init module: %s\n", mod->name);
+            info("Init module: %s", mod->name);
             if (mod->init() != 0) {
-                fprintf(stderr, "Error initializing module: %s\n", mod->name);
+                error("Error initializing module: %s", mod->name);
                 return -1;
             }
         }

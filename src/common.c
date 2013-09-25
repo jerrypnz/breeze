@@ -36,7 +36,7 @@ int current_http_date(char *dst, size_t len) {
     int res;
     res = gettimeofday(&tv, NULL);
     if (res < 0) {
-        perror("Error getting time of day");
+        error("Error getting time of day");
         return -1;
     }
     format_http_date(&tv.tv_sec, dst, len);

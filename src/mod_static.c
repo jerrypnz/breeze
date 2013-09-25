@@ -1,6 +1,7 @@
 #include "mod.h"
 #include "mod_static.h"
 #include "common.h"
+#include "log.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +89,7 @@ int mod_static_init() {
 
     bzero(&std_mime_type_hash, sizeof(struct hsearch_data));
     if (hcreate_r(size * 2, &std_mime_type_hash) == 0) {
-        perror("Error creating standard MIME type hash");
+        error("Error creating standard MIME type hash");
         return -1;
     }
     for (i = 0; i < size; i++) {
@@ -97,10 +98,10 @@ int mod_static_init() {
              ext++, j++) {
             item.key = *ext;
             item.data = standard_types[i].content_type;
-            printf("Registering standard MIME type %s:%s\n",
-                   *ext, standard_types[i].content_type);
+            debug("Registering standard MIME type %s:%s",
+                  *ext, standard_types[i].content_type);
             if (hsearch_r(item, ENTER, &ret, &std_mime_type_hash) == 0) {
-                fprintf(stderr, "Error entering standard MIME type\n");
+                error("Error entering standard MIME type");
             }
         }
     }
@@ -134,7 +135,7 @@ static void  mod_static_conf_destroy(void *conf) {
 static int try_open_file(const char *path, int *fdptr, struct stat *st) {
     int fd, res;
 
-    printf("Try opening file: %s\n", path);
+    debug("Try opening file: %s", path);
     res = stat(path, st);
     if (res < 0) {
         return -1;
@@ -181,7 +182,7 @@ static int static_file_listdir(response_t *resp, const char *path,
     char   buf[2048];
     int    pos = 0, i;
 
-    printf("Opening dir: %s\n", realpath);
+    debug("Opening dir: %s", realpath);
     if ((ent_len = scandir(realpath, &ent_list, dir_filter, versionsort)) < 0) {
         return static_file_handle_error(resp, -1);
     }
@@ -240,7 +241,7 @@ int static_file_handle(request_t *req, response_t *resp,
         return response_send_status(resp, STATUS_BAD_REQUEST);
     }
     strncat(path, req->path, 2048 - len);
-    printf("Request path: %s, real file path: %s\n", req->path, path);
+    debug("Request path: %s, real file path: %s", req->path, path);
     res = try_open_file(path, &fd, &st);
     if (res < 0) {
         return static_file_handle_error(resp, fd);
@@ -304,7 +305,7 @@ int static_file_handle(request_t *req, response_t *resp,
     context_push(ctx, val);
     val.as_long = filesize;
     context_push(ctx, val);
-    printf("sending headers\n");
+    debug("sending headers");
     response_send_headers(resp, static_file_write_content);
     return HANDLER_UNFISHED;
 }
@@ -331,19 +332,18 @@ static int handle_range(request_t *req, response_t *resp,
         return -1;
     }
     if (strstr(range_spec, "bytes=") != range_spec) {
-        fprintf(stderr, "Only byte ranges are supported(error range:%s)\n",
-                range_spec);
+        error("Only byte ranges are supported(error range:%s)", range_spec);
         return -1;
     }
     strncpy(buf, range_spec + 6, 100);
     len = strlen(buf);
     if (index(buf, ',') != NULL) {
-        fprintf(stderr, "Multiple ranges are not supported.\n");
+        error("Multiple ranges are not supported.");
         return -1;
     }
     pos = index(buf, '-');
     if (pos == NULL) {
-        fprintf(stderr, "Invalid range spec: %s.\n", range_spec);
+        error("Invalid range spec: %s.", range_spec);
         return -1;
     }
     idx = pos - buf;
@@ -396,7 +396,7 @@ static void handle_content_type(response_t *resp, const char *filepath) {
 
     strncpy(ext, filepath + 1 + dot_pos, 20);
     strlowercase(ext, ext, 20);
-    printf("File extension: %s\n", ext);
+    debug("File extension: %s", ext);
     
     item.key = ext;
     if (hsearch_r(item, FIND, &ret, &std_mime_type_hash) == 0) {
@@ -404,7 +404,7 @@ static void handle_content_type(response_t *resp, const char *filepath) {
     }
     content_type = (char*) ret->data;
     if (content_type != NULL) {
-        printf("Content type: %s\n", content_type);
+        debug("Content type: %s", content_type);
         response_set_header(resp, "Content-Type", content_type); 
     }
 }
@@ -423,7 +423,7 @@ static int handle_cache(request_t *req, response_t *resp,
     if (if_mod_since != NULL &&
         parse_http_date(if_mod_since, &req_mtime) == 0 &&
         req_mtime == mtime) {
-        printf("Resource not modified\n");
+        debug("Resource not modified");
         not_modified = 1;
     }
     buf = response_alloc(resp, 32);
@@ -469,9 +469,9 @@ static int static_file_write_content(request_t *req, response_t *resp, handler_c
     size = context_pop(ctx)->as_long;
     offset = context_pop(ctx)->as_long;
     fd = context_peek(ctx)->as_int;
-    printf("writing file\n");
+    debug("writing file");
     if (response_send_file(resp, fd, offset, size, static_file_cleanup) < 0) {
-        fprintf(stderr, "Error sending file\n");
+        error("Error sending file");
         return response_send_status(resp, STATUS_NOT_FOUND);
     }
     return HANDLER_UNFISHED;
@@ -480,7 +480,7 @@ static int static_file_write_content(request_t *req, response_t *resp, handler_c
 static int static_file_cleanup(request_t *req, response_t *resp, handler_ctx_t *ctx) {
     int fd;
 
-    printf("cleaning up\n");
+    debug("cleaning up");
     fd = context_pop(ctx)->as_int;
     close(fd);
     return HANDLER_DONE;

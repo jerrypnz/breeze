@@ -1,5 +1,6 @@
 #include "http.h"
 #include "common.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +30,7 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     conn_fd = accept(listen_fd, (struct sockaddr*) &remote_addr, &addr_len);
     if (conn_fd == -1) {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
-            perror("Error accepting new connection");
+            error("Error accepting new connection");
         return NULL;
     }
 
@@ -40,7 +41,7 @@ connection_t* connection_accept(server_t *server, int listen_fd) {
     bzero(conn, sizeof(connection_t));
 
     if (set_nonblocking(conn_fd) < 0) {
-        perror("Error configuring Non-blocking");
+        error("Error configuring Non-blocking");
         goto error;
     }
 

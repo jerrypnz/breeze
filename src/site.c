@@ -2,6 +2,7 @@
 #include "mod.h"
 #include "site.h"
 #include "json.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,12 +21,12 @@ site_conf_t *site_conf_create() {
     
     conf = (site_conf_t*) calloc(1, sizeof(site_conf_t));
     if (conf == NULL) {
-        fprintf(stderr, "Error allocating memory for site configuration");
+        error("Error allocating memory for site configuration");
         return NULL;
     }
 
     if (hcreate_r(MAX_SITES, &conf->site_hash) == 0) {
-        perror("Error creating site hash");
+        error("Error creating site hash");
         free(conf);
         return NULL;
     }
@@ -40,7 +41,7 @@ site_conf_t *site_conf_parse(json_value *sites_obj) {
     int i;
 
     if (sites_obj->type != json_array) {
-        fprintf(stderr, "Config option 'sites' must be a JSON array\n");
+        error("Config option 'sites' must be a JSON array");
         return NULL;
     }
     conf = site_conf_create();
@@ -50,13 +51,13 @@ site_conf_t *site_conf_parse(json_value *sites_obj) {
     for (i = 0; i < sites_obj->u.array.length; i++) {
         val = sites_obj->u.array.values[i];
         if (val->type != json_object) {
-            fprintf(stderr, "The elements of 'sites' must be JSON objects\n");
+            error("The elements of 'sites' must be JSON objects");
             site_conf_destroy(conf);
             return NULL;
         }
         site = site_parse(val);
         if (site == NULL) {
-            fprintf(stderr, "Error creating site\n");
+            error("Error creating site");
             site_conf_destroy(conf);
             return NULL;
         }
@@ -81,13 +82,13 @@ int site_conf_add_site(site_conf_t *conf, site_t *site) {
     ENTRY item, *ret;
 
     if (conf->site_size >= MAX_SITES) {
-        fprintf(stderr, "Max sites reached: %d", MAX_SITES);
+        error("Max sites reached: %d", MAX_SITES);
         return -1;
     }
 
     item.key = host;
     if (hsearch_r(item, FIND, &ret, &conf->site_hash) != 0) {
-        fprintf(stderr, "Duplicate host: %s\n", host);
+        error("Duplicate host: %s", host);
         return -1;
     }
 
@@ -105,7 +106,7 @@ site_t *site_create(const char* host) {
 
     site = (site_t*) calloc(1, sizeof(site_t));
     if (site == NULL) {
-        fprintf(stderr, "Error allocating memory for the site\n");
+        error("Error allocating memory for the site");
         return NULL;
     }
 
@@ -114,7 +115,7 @@ site_t *site_create(const char* host) {
     
     loc = (location_t*) calloc(1, sizeof(location_t));
     if (loc == NULL) {
-        fprintf(stderr, "Error allocating memory for location\n");
+        error("Error allocating memory for location");
         free(site);
         return NULL;
     }
@@ -138,7 +139,7 @@ site_t *site_parse(json_value *site_obj) {
     }
     ON_CONF_OPTION("locations", json_array) {
         if (parse_locations(site, val) != 0) {
-            fprintf(stderr, "Error parsing locations\n");
+            error("Error parsing locations");
             site_destroy(site);
             return NULL;
         }
@@ -160,7 +161,7 @@ int parse_locations(site_t *site, json_value *location_objs) {
     for (i = 0; i < location_objs->u.array.length; i++) {
         val = location_objs->u.array.values[i];
         if (val->type != json_object) {
-            fprintf(stderr, "The elements of 'locations' must be JSON objects\n");
+            error("The elements of 'locations' must be JSON objects");
             return -1;
         }
 
@@ -180,12 +181,12 @@ int parse_locations(site_t *site, json_value *location_objs) {
         
         mod = find_module(mod_name);
         if (mod == NULL) {
-            fprintf(stderr, "Unknown mod: %s\n", mod_name);
+            error("Unknown mod: %s", mod_name);
             return -1;
         }
         handler_conf = mod->create(val);
         if (site_add_location(site, type, path, mod->handler, handler_conf) != 0) {
-            fprintf(stderr, "Error adding location %s to site\n", path);
+            error("Error adding location %s to site", path);
             return -1;
         }
     }
@@ -239,17 +240,17 @@ int site_add_location(site_t *site, int type,
     len = strlen(prefix_or_regex);
 
     if (len == 0) {
-        fprintf(stderr, "Empty prefix/regex\n");
+        error("Empty prefix/regex");
         return -1;
     }
     if (type == URI_PREFIX) {
         if (prefix_or_regex[0] != '/') {
-            fprintf(stderr, "URI Prefix must starts with /\n");
+            error("URI Prefix must starts with /");
             return -1;
         }
         loc = (location_t*) calloc(1, sizeof(location_t));
         if (loc == NULL) {
-            fprintf(stderr, "Error allocating memory for new location\n");
+            error("Error allocating memory for new location");
             return -1;
         }
         loc->uri.prefix = prefix_or_regex;        
@@ -260,17 +261,17 @@ int site_add_location(site_t *site, int type,
             mem = ((char*)mem + sizeof(location_t));
             reg = (regex_t*) mem;
         } else {
-            fprintf(stderr, "Error allocating memory for new location\n");
+            error("Error allocating memory for new location");
             return -1;
         }
         if (regcomp(reg, prefix_or_regex, REG_EXTENDED | REG_NOSUB) != 0) {
-            fprintf(stderr, "Invalid regex: %s\n", prefix_or_regex);
+            error("Invalid regex: %s", prefix_or_regex);
             free(loc);
             return -1;
         }
         loc->uri.regex = reg;
     } else {
-        fprintf(stderr, "Unknown location type: %d\n", type);
+        error("Unknown location type: %d", type);
         return -1;
     }
     

@@ -1,4 +1,5 @@
 #include "ioloop.h"
+#include "log.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -23,7 +24,7 @@ static void connection_handler(ioloop_t *loop, int listen_fd, unsigned int event
     addr_len = sizeof(struct sockaddr_in);
     conn_fd = accept(listen_fd, (struct sockaddr*) &remo_addr, &addr_len);
     if (conn_fd == -1) {
-        perror("Error accepting new connection");
+        error("Error accepting new connection");
         return;
     }
 
@@ -46,16 +47,16 @@ static void echo_handler(ioloop_t *loop, int fd, unsigned int events, void *args
     if (events & EPOLLIN) {
         nread = read(fd, buffer, 1024);
         if (nread == 0) {
-            printf("Connection closed or error condition occurs: %d\n", fd);
+            info("Connection closed or error condition occurs: %d", fd);
             ioloop_remove_handler(loop, fd);
             close(fd);
             return;
         } else if (nread < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            perror("Error reading");
+            error("Error reading");
             return;
         }
         buffer[nread] = '\0';
-        printf("Read from client: %s", buffer);
+        debug("Read from client: %s", buffer);
         assert(write(fd, buffer, nread) > 0);
     }
 }
@@ -67,14 +68,14 @@ int main(int argc, char *argv[]) {
 
     loop = ioloop_create(100);
     if (loop == NULL) {
-        fprintf(stderr, "Error initializing ioloop");
+        error("Error initializing ioloop");
         return -1;
     }
 
     // ---------- Create and bind listen socket fd --------------
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
-        perror("Error creating socket");
+        error("Error creating socket");
         return -1;
     }
 
@@ -83,13 +84,13 @@ int main(int argc, char *argv[]) {
     addr.sin_port = htons(9999);
 
     if (bind(listen_fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
-        perror("Error binding address");
+        error("Error binding address");
         return -1;
     }
 
     // ------------ Start listening ------------------------------
     if (listen(listen_fd, 10) == -1) {
-        perror("Error listening");
+        error("Error listening");
         return -1;
     }
 
