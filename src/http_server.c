@@ -1,6 +1,7 @@
 #include "http.h"
 #include "site.h"
 #include "json.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,13 +37,13 @@ server_t* server_create() {
 
     server = (server_t*) calloc(1, sizeof(server_t));
     if (server == NULL) {
-        perror("Error allocating memory for server");
+        error("Error allocating memory for server");
         return NULL;
     }
 
     ioloop = (ioloop_t*) ioloop_create(MAX_CONNECTIONS);
     if (ioloop == NULL) {
-        fprintf(stderr, "Error creating ioloop");
+        error("Error creating ioloop");
         return NULL;
     }
 
@@ -50,6 +51,7 @@ server_t* server_create() {
     server->port = 8000;
     server->ioloop = ioloop;
     server->state = SERVER_INIT;
+    server->loglevel = INFO;
     return server;
 }
 
@@ -70,17 +72,17 @@ server_t* server_parse_conf(char *configfile) {
 
     fd = open(configfile, O_RDONLY);
     if (fd < 0) {
-        perror("Error opening config file");
+        error("Error opening config file");
         goto error;
     }
     sz = read(fd, buf, 10240);
     
     json = json_parse_ex(&settings, buf, sz, error);
     if (json == NULL) {
-        fprintf(stderr, "Error parsing JSON config file: %s\n", error);
+        error("Error parsing JSON config file: %s", error);
         goto error;
     } else if (json->type != json_object) {
-        fprintf(stderr, "Invalid conf: the root is not a JSON object\n");
+        error("Invalid conf: the root is not a JSON object");
         goto error;
     }
     
@@ -88,7 +90,7 @@ server_t* server_parse_conf(char *configfile) {
     server->conf = json;
     
     if (_configure_server(server, json) != 0) {
-        fprintf(stderr, "Error detected when configuring the server\n");
+        error("Error detected when configuring the server");
         goto error;
     }
     
@@ -116,23 +118,24 @@ int server_destroy(server_t *server) {
 }
 
 int server_start(server_t *server) {
+    configure_log(server->loglevel, server->logfile, !server->daemonize);
     if (_server_init(server) < 0) {
-        fprintf(stderr, "Error initializing server\n");
+        error("Error initializing server");
         return -1;
     }
     // Block SIGPIPE
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-        fprintf(stderr, "Error blocking SIGPIPE\n");
+        error("Error blocking SIGPIPE");
     }
-    printf("Start running server on %d\n", server->port);
+    info("Start running server on %d", server->port);
     server->state = SERVER_RUNNING;
     return ioloop_start(server->ioloop);
 }
 
 int server_stop(server_t *server) {
-    printf("Stopping server\n");
+    info("Stopping server");
     if (ioloop_stop(server->ioloop) < 0) {
-        fprintf(stderr, "Error stopping ioloop\n");
+        error("Error stopping ioloop");
         return -1;
     }
     server->state = SERVER_STOPPED;
@@ -146,7 +149,7 @@ static int _server_init(server_t *server) {
     // ---------- Create and bind listen socket fd --------------
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
-        perror("Error creating socket");
+        error("Error creating socket");
         return -1;
     }
 
@@ -157,19 +160,19 @@ static int _server_init(server_t *server) {
     if (bind(listen_fd,
              (struct sockaddr *)&addr,
              sizeof(struct sockaddr_in)) == -1) {
-        perror("Error binding address");
+        error("Error binding address");
         close(listen_fd);
         return -1;
     }
 
     // ------------ Start listening ------------------------------
     if (listen(listen_fd, MAX_BACKLOG) == -1) {
-        perror("Error listening");
+        error("Error listening");
         close(listen_fd);
         return -1;
     }
     if (set_nonblocking(listen_fd) < 0) {
-        perror("Error configuring non-blocking");
+        error("Error configuring non-blocking");
         close(listen_fd);
         return -1;
     }
@@ -179,7 +182,7 @@ static int _server_init(server_t *server) {
                            EPOLLIN,
                            _server_connection_handler,
                            server) < 0) {
-        fprintf(stderr, "Error add connection handler\n");
+        error("Error add connection handler");
         return -1;
     }
     return 0;
@@ -190,6 +193,7 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
     char  *name, *port_str;
     site_conf_t  *site_conf = NULL;
     int i;
+    int lvl = INFO;
 
     for (i = 0; i < conf_obj->u.object.length; i++) {
         name = conf_obj->u.object.values[i].name;
@@ -207,18 +211,36 @@ static int _configure_server(server_t *server, json_value *conf_obj) {
         } else if(strcmp("sites", name) == 0) {
             site_conf = site_conf_parse(val);
             if (site_conf == NULL) {
-                fprintf(stderr, "Error creating site conf\n");
+                error("Error creating site conf");
                 return -1;
             }
+        } else if(strcmp("logfile", name) == 0 && val->type == json_string) {
+            server->logfile = val->u.string.ptr;
+        } else if(strcmp("daemonize", name) == 0 && val->type == json_boolean) {
+            server->daemonize = val->u.boolean;
+        } else if(strcmp("pidfile", name) == 0 && val->type == json_string) {
+            server->pidfile = val->u.string.ptr;
+        } else if(strcmp("loglevel", name) == 0 && val->type == json_string) {
+            if (strcasecmp("debug", val->u.string.ptr) == 0) {
+                lvl = DEBUG;
+            } else if(strcasecmp("info", val->u.string.ptr) == 0) {
+                lvl = INFO;
+            } else if(strcasecmp("warn", val->u.string.ptr) == 0) {
+                lvl = WARN;
+            } else if(strcasecmp("error", val->u.string.ptr) == 0) {
+                lvl = ERROR;
+            } else {
+                warn("Unknown log level: %s", val->u.string.ptr);
+            }
+            server->loglevel = lvl;
         } else {
-            fprintf(stderr, "[WARN] Unknown config command %s with type %d\n",
-                    name, val->type);
+            warn("Unknown config command %s with type %d", name, val->type);
         }
 
     }
 
     if (site_conf == NULL) {
-        fprintf(stderr, "No site found\n");
+        error("No site found");
         return -1;
     }
     server->handler = site_handler;

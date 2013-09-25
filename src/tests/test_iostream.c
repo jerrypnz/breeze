@@ -1,5 +1,6 @@
 #include "ioloop.h"
 #include "iostream.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,44 +41,44 @@ static void connection_handler(ioloop_t *loop, int listen_fd, unsigned int event
     iostream_t *stream;
 
     // -------- Accepting connection ----------------------------
-    printf("Accepting new connection...\n");
+    debug("Accepting new connection...");
     addr_len = sizeof(struct sockaddr_in);
     conn_fd = accept(listen_fd, (struct sockaddr*) &remo_addr, &addr_len);
-    printf("Connection fd: %d...\n", conn_fd);
+    debug("Connection fd: %d...", conn_fd);
     if (conn_fd == -1) {
-        perror("Error accepting new connection");
+        error("Error accepting new connection");
         return;
     }
 
     if (set_nonblocking(conn_fd)) {
-        perror("Error configuring Non-blocking");
+        error("Error configuring Non-blocking");
         return;
     }
     stream = iostream_create(loop, conn_fd, 1024, 1024, NULL);
     iostream_set_close_handler(stream, connection_close_handler);
     switch(mode) {
     case 0:
-        fprintf(stderr, "Testing read 16 bytes\n");
+        error("Testing read 16 bytes");
         iostream_read_bytes(stream, 16, read_bytes, NULL);
         break;
             
     case 1:
-        fprintf(stderr, "Testing read_until two blank lines(\\n\\n)\n");
+        error("Testing read_until two blank lines(\\n\\n)");
         iostream_read_until(stream, "\r\n\r\n", read_headers);
         break;
 
     case 2:
-        fprintf(stderr, "Testing writing dummy data\n");
+        error("Testing writing dummy data");
         write_texts(stream);
         break;
 
     case 3:
-        fprintf(stderr, "Testing sending file\n");
+        error("Testing sending file");
         send_file(stream);
         break;
 
     default:
-        fprintf(stderr, "Unknown mode: read_until two blank lines(\\n)\n");
+        error("Unknown mode: read_until two blank lines(\\n)");
         iostream_read_until(stream, "\r\n\r\n", read_headers);
         break;
     }
@@ -94,7 +95,7 @@ static void read_headers(iostream_t *stream, void *data, size_t len) {
 }
 
 static void close_stream(iostream_t *stream) {
-    printf("closing stream: %d\n", stream->fd);
+    debug("closing stream: %d", stream->fd);
     iostream_close(stream);
 }
 
@@ -115,19 +116,19 @@ static void send_file(iostream_t *stream) {
 
     fd = open(filename, O_RDONLY);
     if (fd < 0) {
-        perror("Error opening file");
+        error("Error opening file");
         return;
     }
 
     if (fstat(fd, &st) < 0) {
-        perror("Error get the st of the file");
+        error("Error get the st of the file");
         return;
     }
 
     len = st.st_size;
 
     if (len == 0) {
-        fprintf(stderr, "File is empty\n");
+        error("File is empty");
         return;
     }
 
@@ -138,16 +139,16 @@ static void dump_data(void *data, size_t len) {
     char    *str = (char*) data;
     int     i;
 
-    printf("Data read:\n------------------\n");
+    info("Data read:\n------------------");
     for (i = 0; i < len; i++) {
         putchar(str[i]);
     }
-    printf("\n--------------------\n");
+    info("--------------------");
 }
 
 
 static void connection_close_handler(iostream_t *stream) {
-    printf("Closing connection.\n");
+    info("Closing connection.");
 }
 
 int main(int argc, char *argv[]) {
@@ -157,14 +158,14 @@ int main(int argc, char *argv[]) {
 
     loop = ioloop_create(100);
     if (loop == NULL) {
-        fprintf(stderr, "Error initializing ioloop");
+        error("Error initializing ioloop");
         return -1;
     }
 
     // ---------- Create and bind listen socket fd --------------
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd == -1) {
-        perror("Error creating socket");
+        error("Error creating socket");
         return -1;
     }
 
@@ -173,13 +174,13 @@ int main(int argc, char *argv[]) {
     addr.sin_port = htons(9999);
 
     if (bind(listen_fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) == -1) {
-        perror("Error binding address");
+        error("Error binding address");
         return -1;
     }
 
     // ------------ Start listening ------------------------------
     if (listen(listen_fd, 10) == -1) {
-        perror("Error listening");
+        error("Error listening");
         return -1;
     }
 
@@ -187,7 +188,7 @@ int main(int argc, char *argv[]) {
         mode = atoi(argv[1]);
         if (mode == 3) {
             if (argc < 3) 
-                fprintf(stderr, "Please specify a file name");
+                error("Please specify a file name");
             else
                 strcpy(filename, argv[2]);
         }

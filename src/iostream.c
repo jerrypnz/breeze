@@ -1,6 +1,7 @@
 #include "iostream.h"
 #include "ioloop.h"
 #include "buffer.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,19 +75,19 @@ iostream_t *iostream_create(ioloop_t *loop,
 
     stream = (iostream_t*) calloc(1, sizeof(iostream_t));
     if (stream == NULL) {
-        perror("Error allocating memory for IO stream");
+        error("Error allocating memory for IO stream");
         goto error;
     }
     bzero(stream, sizeof(iostream_t));
 
     in_buf = buffer_create(read_buf_capacity);
     if (in_buf == NULL ) {
-        perror("Error creating read buffer");
+        error("Error creating read buffer");
         goto error;
     }
     out_buf = buffer_create(write_buf_capacity);
     if (out_buf == NULL) {
-        perror("Error creating write buffer");
+        error("Error creating write buffer");
         goto error;
     }
 
@@ -110,7 +111,7 @@ iostream_t *iostream_create(ioloop_t *loop,
                            stream->events,
                            _handle_io_events,
                            stream) < 0) {
-        perror("Error add EPOLLERR event");
+        error("Error add EPOLLERR event");
         goto error;
     }
 
@@ -148,7 +149,7 @@ static void _close_callback(ioloop_t *loop, void *args) {
 
 static void _destroy_callback(ioloop_t *loop, void *args) {
     iostream_t *stream = (iostream_t*) args;
-    printf("IO stream(fd:%d) destroyed.\n", stream->fd);
+    debug("IO stream(fd:%d) destroyed.", stream->fd);
     iostream_destroy(stream);
 }
     
@@ -251,7 +252,7 @@ int iostream_sendfile(iostream_t *stream, int in_fd,
         return -1;
     }
     if (fstat(in_fd, &st) < 0) {
-        perror("The file to send is not valid");
+        error("The file to send is not valid");
         return -2;
     }
 
@@ -261,7 +262,7 @@ int iostream_sendfile(iostream_t *stream, int in_fd,
         break;
 
     default:
-        fprintf(stderr, "Unsupported file type: %d", st.st_mode);
+        error("Unsupported file type: %d", st.st_mode);
         return -3;
     }
     stream->sendfile_fd = in_fd;
@@ -320,11 +321,10 @@ static void _handle_io_events(ioloop_t *loop,
     }
 
     if (is_closed(stream)) {
-        fprintf(stderr, "Stream closed\n");
+        error("Stream closed");
         return;
     }
 
-    //printf("Updating epoll events for socket fd %d, event %d\n", stream->fd, stream->events);
     ioloop_update_handler(stream->ioloop, stream->fd, stream->events);    
 }
 

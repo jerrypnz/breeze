@@ -1,5 +1,6 @@
 #include "http.h"
 #include "common.h"
+#include "log.h"
 #include "stacktrace.h"
 #include <assert.h>
 #include <string.h>
@@ -81,10 +82,11 @@ void test_parse_once() {
 
     req = request_create(NULL);
     assert(req != NULL);
-    printf("\n\nTesting parsing all in one time\n");
+    info("\n\nTesting parsing all in one time");
     req_size = strlen(test_request);
     rc = request_parse_headers(req, test_request, req_size, &consumed_size);
-    printf("Request size: %zu, consumed size: %zu, return status: %d\n", req_size, consumed_size, rc);
+    info("Request size: %zu, consumed size: %zu, return status: %d",
+         req_size, consumed_size, rc);
     dump_request(req);
     assert(rc == STATUS_COMPLETE);
     assert(consumed_size == req_size);
@@ -100,10 +102,10 @@ void test_parse_once_with_extra_data() {
 
     req = request_create(NULL);
     assert(req != NULL);
-    printf("\n\nTesting parsing all in one time with extra data left\n");
+    info("\n\nTesting parsing all in one time with extra data left");
     req_size = strlen(test_request_2);
     rc = request_parse_headers(req, test_request_2, req_size, &consumed_size);
-    printf("Request size: %zu, consumed size: %zu, return status: %d\n", req_size, consumed_size, rc);
+    info("Request size: %zu, consumed size: %zu, return status: %d", req_size, consumed_size, rc);
     dump_request(req);
     assert(rc == STATUS_COMPLETE);
     assert(consumed_size == req_size - strlen("GET /home/hello.do?id=1001&name=hello HTTP/1.1\r\n"));
@@ -120,15 +122,15 @@ void test_parse_multiple_times() {
 
     req = request_create(NULL);
     assert(req != NULL);
-    printf("\n\nTesting parsing all in multiple time\n");
+    info("\n\nTesting parsing all in multiple time");
     data = test_request;
     req_size = strlen(data);
     part1_size = req_size / 2;
 
     // Incomplete request
     rc = request_parse_headers(req, data, part1_size, &consumed_size);
-    printf("First Time: Request size: %zu, consumed size: %zu, return status: %d\n",
-           req_size, consumed_size, rc);
+    info("First Time: Request size: %zu, consumed size: %zu, return status: %d",
+         req_size, consumed_size, rc);
     dump_request(req);
     assert(rc == STATUS_INCOMPLETE);
     assert(consumed_size == part1_size);
@@ -145,7 +147,7 @@ void test_parse_invalid_version() {
     assert(req != NULL);
     req_size = strlen(invalid_req);
 
-    printf("\n\nTesting invalid HTTP version\n");
+    info("\n\nTesting invalid HTTP version");
     rc = request_parse_headers(req, invalid_req, req_size, &consumed_size);
     dump_request(req);
     assert(rc == STATUS_ERROR);
@@ -169,7 +171,7 @@ void test_common_header_handling() {
     assert(req != NULL);
     req_size = strlen(test_request_3);
 
-    printf("\n\nTesting common header handling \n");
+    info("\n\nTesting common header handling");
     rc = request_parse_headers(req, test_request_3, req_size, &consumed_size);
     dump_request(req);
     assert(rc == STATUS_COMPLETE);
@@ -183,20 +185,20 @@ void test_common_header_handling() {
 void dump_request(request_t *req) {
     int i;
 
-    printf("--------- Parser State -----------------------\n");
-    printf("Method: %s\n", req->method);
-    printf("Path: %s\n", req->path);
-    printf("Query String: %s\n", req->query_str);
-    printf("HTTP Version: %d\n", req->version);
-    printf("Header count: %zu\n", req->header_count);
-    printf("Headers: \n");
-    printf("------------\n");
+    info("--------- Parser State -----------------------");
+    info("Method: %s", req->method);
+    info("Path: %s", req->path);
+    info("Query String: %s", req->query_str);
+    info("HTTP Version: %d", req->version);
+    info("Header count: %zu", req->header_count);
+    info("Headers: ");
+    info("------------");
 
     for (i = 0; i < req->header_count; i++) {
-        printf("\r%s: %s\n", req->headers[i].name, req->headers[i].value);
+        info("\r%s: %s", req->headers[i].name, req->headers[i].value);
     }
 
-    printf("----------------------------------------------\n");
+    info("----------------------------------------------");
 }
 
 void assert_headers(request_t *req) {
@@ -205,9 +207,9 @@ void assert_headers(request_t *req) {
 
     expected_header_size = sizeof(expected_headers) / sizeof(http_header_t);
 
-    printf("Expecting %d headers\n", expected_header_size);
+    info("Expecting %d headers", expected_header_size);
     assert(expected_header_size == req->header_count);
-    printf("Checked\n");
+    info("Checked");
 
     for (i = 0; i < req->header_count; i++) {
         assert(strcmp(expected_headers[i].name,  req->headers[i].name) == 0);
@@ -221,16 +223,16 @@ void assert_headers(request_t *req) {
 void dump_response(response_t *resp) {
     int i;
 
-    printf("--------- Response State -----------------------\n");
-    printf("Header count: %zu\n", resp->header_count);
-    printf("Headers: \n");
-    printf("------------\n");
+    info("--------- Response State -----------------------");
+    info("Header count: %zu", resp->header_count);
+    info("Headers: ");
+    info("------------");
 
     for (i = 0; i < resp->header_count; i++) {
-        printf("\r%s: %s\n", resp->headers[i].name, resp->headers[i].value);
+        info("\r%s: %s", resp->headers[i].name, resp->headers[i].value);
     }
 
-    printf("----------------------------------------------\n");
+    info("----------------------------------------------");
 }
 
 
@@ -243,7 +245,7 @@ void test_response_set_header_basic() {
     assert(response_set_header(response, "Content-Length", "201") == 0);
     assert(response_set_header(response, "Content-Type", "application/html") == 0);
 
-    printf("After setting content-length and content-type\n");
+    info("After setting content-length and content-type");
     dump_response(response);
 
     assert(response->header_count == 2);
@@ -258,7 +260,7 @@ void test_response_set_header_basic() {
 
     // Replace header value
     assert(response_set_header(response, "Content-Length", "1024") == 0);
-    printf("After setting content-length again\n");
+    info("After setting content-length again");
     dump_response(response);
 
     assert_equals(response->headers[0].value, "1024");
@@ -266,7 +268,7 @@ void test_response_set_header_basic() {
 
     // Set unknow, non-standard headers
     assert(response_set_header(response, "X-Foobar", "foobar") == 0);
-    printf("After setting non-standard header\n");
+    info("After setting non-standard header");
     dump_response(response);
 
     assert_equals(response->headers[2].name, "X-Foobar");

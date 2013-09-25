@@ -1,4 +1,5 @@
 #include "ioloop.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,7 +53,7 @@ ioloop_t *ioloop_create(unsigned int maxfds) {
     
     loop = (ioloop_t*) calloc (1, sizeof(ioloop_t));
     if (loop == NULL) {
-        perror("Could not allocate memory for IO loop");
+        error("Could not allocate memory for IO loop");
         return NULL;
     }
     bzero(loop, sizeof(ioloop_t));
@@ -60,7 +61,7 @@ ioloop_t *ioloop_create(unsigned int maxfds) {
 
     handlers = (struct _io_callback*) calloc(maxfds, sizeof(struct _io_callback));
     if (handlers == NULL) {
-        perror("Could not allocate memory for IO handlers");
+        error("Could not allocate memory for IO handlers");
         return NULL;
     }
 
@@ -69,7 +70,7 @@ ioloop_t *ioloop_create(unsigned int maxfds) {
 
     epoll_fd = epoll_create(maxfds);
     if (epoll_fd == -1) {
-        perror("Error initializing epoll");
+        error("Error initializing epoll");
         return NULL;
     }
 
@@ -97,14 +98,14 @@ int ioloop_add_handler(ioloop_t *loop,
     struct epoll_event     ev;
 
     if (handler == NULL) {
-        fprintf(stderr, "Handler should not be NULL!");
+        error("Handler should not be NULL!");
         return -1;
     }
 
     ev.data.fd = fd;
     ev.events = events | EPOLLET;
     if (epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
-        perror("Error adding fd to epoll");
+        error("Error adding fd to epoll");
         return -1;
     }
 
@@ -119,7 +120,7 @@ int ioloop_update_handler(ioloop_t *loop, int fd, unsigned int events) {
     ev.data.fd = fd;
     ev.events = events;
     if (epoll_ctl(loop->epoll_fd, EPOLL_CTL_MOD, fd, &ev) == -1) {
-        perror("Error modifying epoll events");
+        error("Error modifying epoll events");
         return -1;
     }
 
@@ -130,13 +131,13 @@ int ioloop_update_handler(ioloop_t *loop, int fd, unsigned int events) {
 io_handler  ioloop_remove_handler(ioloop_t *loop, int fd) {
     int         res;
     io_handler  handler;
-    printf("Removing handler for fd %d\n", fd);
+    debug("Removing handler for fd %d", fd);
     handler = loop->handlers[fd].callback;
     loop->handlers[fd].callback = NULL;
     loop->handlers[fd].args = NULL;
     res = epoll_ctl(loop->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
     if (res < 0) {
-        perror("Error removing fd from epoll");
+        error("Error removing fd from epoll");
     }
     return handler;
 }
@@ -153,7 +154,7 @@ int ioloop_start(ioloop_t *loop) {
     void          *args;
 
     if (loop->state != INITIALIZED) {
-        fprintf(stderr, "Could not restart an IO loop");
+        error("Could not restart an IO loop");
         return -1;
     }
     epoll_fd = loop->epoll_fd;
@@ -177,7 +178,7 @@ int ioloop_start(ioloop_t *loop) {
         }
         nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, epoll_timeout);
         if (nfds == -1) {
-            perror("epoll_wait");
+            error("epoll_wait");
             continue;
         }
 

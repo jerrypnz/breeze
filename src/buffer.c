@@ -30,7 +30,7 @@ buffer_t *buffer_create(size_t size) {
     mem_sz = size + sizeof(buffer_t);
     mem = malloc(mem_sz);
     if (mem == NULL) {
-        perror("Error allocating buffer memory");
+        error("Error allocating buffer memory");
         return NULL;
     }
     buf = (buffer_t*) mem;

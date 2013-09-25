@@ -1,6 +1,7 @@
 #include "http.h"
 #include "mod.h"
 #include "site.h"
+#include "log.h"
 #include "mod_static.h"
 #include "stacktrace.h"
 #include <stdio.h>
@@ -39,7 +40,7 @@ int main(int argc, char *argv[]) {
     }
     
     if (server == NULL) {
-        fprintf(stderr, "Error creating server\n");
+        error("Error creating server\n");
         return 1;
     }
 
@@ -59,7 +60,7 @@ static opt_t *parse_opts(int argc, char *argv[]) {
     
     opt = (opt_t*) calloc(1, sizeof(opt_t));
     if (opt == NULL) {
-        fprintf(stderr, "Error allocating memory\n");
+        error("Error allocating memory\n");
         return NULL;
     }
     opt->conf_file = DEFAULT_CONF;
@@ -101,13 +102,13 @@ static void print_conf_details(server_t *server) {
     
     for (i = 0; i < site_conf->site_size; i++) {
         site = site_conf->sites[i];
-        printf("Found site: %s\n", site->host);
+        info("Found site: %s", site->host);
         for (loc = site->location_head->next; loc != NULL; loc = loc->next) {
-            printf("\t Location: ");
+            info("\t Location: ");
             if (loc->match_type == URI_REGEX) {
-                printf("[regex]\n");
+                info("[regex]");
             } else if (loc->match_type == URI_PREFIX) {
-                printf("%s\n", loc->uri.prefix);
+                info("%s", loc->uri.prefix);
             }
         }
     }
@@ -120,7 +121,7 @@ static server_t *create_simple_server(opt_t *opt) {
    bzero(&conf, sizeof(mod_static_conf_t));
 
    if (mod_static_init() < 0) {
-       fprintf(stderr, "Error initializing mod_static\n");
+       error("Error initializing mod_static\n");
        return NULL;
    }
    

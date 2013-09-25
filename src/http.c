@@ -1,5 +1,6 @@
 #include "common.h"
 #include "http.h"
+#include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,7 +62,7 @@ request_t* request_create(connection_t *conn) {
     }
     bzero(req, sizeof(request_t));
     if (hcreate_r(MAX_HEADER_SIZE, &req->_header_hash) == 0) {
-        perror("Error creating header hash table");
+        error("Error creating header hash table");
         free(req);
         return NULL;
     }
@@ -74,7 +75,7 @@ int request_reset(request_t *req) {
     hdestroy_r(&req->_header_hash);
     bzero(req, sizeof(request_t));
     if (hcreate_r(MAX_HEADER_SIZE, &req->_header_hash) == 0) {
-        perror("Error creating header hash table\n");
+        error("Error creating header hash table");
         return -1;
     }    
     req->_conn = conn;
@@ -271,7 +272,7 @@ int request_parse_headers(request_t *req,
                 break;
 
             default:
-                fprintf(stderr, "Unexpected state: %d\n", state);
+                error("Unexpected state: %d", state);
                 break;
 
         }
@@ -413,14 +414,14 @@ static int init_std_headers_hash() {
 
     bzero(&std_headers_hash, sizeof(struct hsearch_data));
     if (hcreate_r(sizeof(std_headers) * 2, &std_headers_hash) == 0) {
-        perror("Error creating standard headers hash");
+        error("Error creating standard headers hash");
         return -1;
     }
     for (i = 0; i < size; i++) {
         item.key = std_headers[i].lower_name;
         item.data = std_headers[i].callback;
         if (hsearch_r(item, ENTER, &ret, &std_headers_hash) == 0) {
-            fprintf(stderr, "Error entering standard header %s to hash\n", item.key);
+            error("Error entering standard header %s to hash", item.key);
         }
     }
     std_headers_hash_initialized = 1;
@@ -496,7 +497,7 @@ response_t* response_create(connection_t *conn) {
 
     bzero(resp, sizeof(response_t));
     if (hcreate_r(MAX_HEADER_SIZE, &resp->_header_hash) == 0) {
-        perror("Error creating header hash table");
+        error("Error creating header hash table");
         free(resp);
         return NULL;
     }
@@ -513,7 +514,7 @@ int response_reset(response_t *resp) {
     hdestroy_r(&resp->_header_hash);
     bzero(resp, sizeof(response_t));
     if (hcreate_r(MAX_HEADER_SIZE, &resp->_header_hash) == 0) {
-        perror("Error creating header hash table\n");
+        error("Error creating header hash table");
         return -1;
     }
     resp->_conn = conn;
